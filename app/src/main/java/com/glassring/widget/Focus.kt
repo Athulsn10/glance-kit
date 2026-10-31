@@ -1,6 +1,9 @@
 package com.glassring.widget
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import androidx.work.Constraints
@@ -55,24 +58,35 @@ object Focus {
         Store.finish(c, completed = false)
     }
 
+    /**
+     * The session end is an alarm that fires even when the phone is idle (usually on time, at
+     * worst a few minutes late in deep sleep). No special permission needed.
+     */
     private fun scheduleDone(c: Context, delayMs: Long) {
-        val req = OneTimeWorkRequestBuilder<FocusDoneWorker>()
-            .setInitialDelay(delayMs.coerceAtLeast(0), TimeUnit.MILLISECONDS)
-            .build()
-        WorkManager.getInstance(c).enqueueUniqueWork(DONE_WORK, ExistingWorkPolicy.REPLACE, req)
+        val am = c.getSystemService(AlarmManager::class.java) ?: return
+        am.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP,
+            System.currentTimeMillis() + delayMs.coerceAtLeast(0),
+            alarmIntent(c),
+        )
     }
 
-    private fun cancelDone(c: Context) {
-        WorkManager.getInstance(c).cancelUniqueWork(DONE_WORK)
-    }
-}
+    private fun cancelDone(c: Context) = cancelAlarm(c)
 
-/** Runs when a focus session ends: counts it, buzzes once, redraws. */
-class FocusDoneWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
-    override suspend fun doWork(): Result {
-        val c = applicationContext
+    fun cancelAlarm(c: Context) {
+        c.getSystemService(AlarmManager::class.java)?.cancel(alarmIntent(c))
+    }
+
+    private fun alarmIntent(c: Context): PendingIntent = PendingIntent.getBroadcast(
+        c, 40,
+        Intent(c, RingWidgetReceiver::class.java).setAction(ACTION_FOCUS_DONE),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /** Alarm fired: count the session and buzz once. */
+    fun onAlarm(c: Context) {
         val end = Store.focusEndAt(c)
-        // Ignore if the session was paused, stopped or extended since this was scheduled.
+        // Ignore if the session was paused, stopped or extended since the alarm was set.
         if (end > 0 && end <= System.currentTimeMillis() + 5_000) {
             Store.finish(c, completed = true)
             try {
@@ -81,8 +95,6 @@ class FocusDoneWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
             } catch (e: Exception) {
             }
         }
-        refreshAll(c)
-        return Result.success()
     }
 }
 
@@ -91,16 +103,24 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
     override suspend fun doWork(): Result {
         val c = applicationContext
         refreshAll(c)
-        if (!Collect.battery(c).plugged) ChargeWorker.watch(c)
+        if (Collect.battery(c).plugged) ChargeWorker.kick(c) else ChargeWorker.watch(c)
         return Result.success()
     }
 
     companion object {
         fun schedule(c: Context) {
             val req = PeriodicWorkRequestBuilder<RefreshWorker>(15, TimeUnit.MINUTES).build()
-            WorkManager.getInstance(c).enqueueUniquePeriodicWork("ring_refresh", ExistingPeriodicWorkPolicy.KEEP, req)
+            WorkManager.getInstance(c).enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, req)
             ChargeWorker.watch(c)
         }
+
+        fun cancelAll(c: Context) {
+            val wm = WorkManager.getInstance(c)
+            wm.cancelUniqueWork(NAME)
+            ChargeWorker.cancel(wm)
+        }
+
+        private const val NAME = "ring_refresh"
     }
 }
 
@@ -113,7 +133,13 @@ class ChargeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
     override suspend fun doWork(): Result {
         val c = applicationContext
         refreshAll(c)
-        if (Collect.battery(c).plugged) tick(c, next = if (tags.contains(TAG_A)) TICK_B else TICK_A) else watch(c)
+        if (Collect.battery(c).plugged) {
+            tick(c, next = if (tags.contains(TAG_A)) TICK_B else TICK_A)
+        } else {
+            // If this run is the charger watcher itself, KEEP would see it still running and do
+            // nothing, so queue the next watcher after it instead.
+            watch(c, afterSelf = tags.contains(TAG_WAIT))
+        }
         return Result.success()
     }
 
@@ -122,13 +148,25 @@ class ChargeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx
         private const val TICK_A = "charge_tick_a"
         private const val TICK_B = "charge_tick_b"
         private const val TAG_A = "tick_a"
+        private const val TAG_WAIT = "charge_wait"
 
         /** Wait for the charger. Cheap: handled by the system's job scheduler. */
-        fun watch(c: Context) {
+        fun watch(c: Context, afterSelf: Boolean = false) {
             val req = OneTimeWorkRequestBuilder<ChargeWorker>()
                 .setConstraints(Constraints.Builder().setRequiresCharging(true).build())
+                .addTag(TAG_WAIT)
                 .build()
-            WorkManager.getInstance(c).enqueueUniqueWork(WAIT, ExistingWorkPolicy.KEEP, req)
+            val policy = if (afterSelf) ExistingWorkPolicy.APPEND_OR_REPLACE else ExistingWorkPolicy.KEEP
+            WorkManager.getInstance(c).enqueueUniqueWork(WAIT, policy, req)
+        }
+
+        /** Plugged in but the watcher didn't fire (e.g. held at 80%): start the minute loop. */
+        fun kick(c: Context) = tick(c, TICK_A)
+
+        fun cancel(wm: WorkManager) {
+            wm.cancelUniqueWork(WAIT)
+            wm.cancelUniqueWork(TICK_A)
+            wm.cancelUniqueWork(TICK_B)
         }
 
         /**

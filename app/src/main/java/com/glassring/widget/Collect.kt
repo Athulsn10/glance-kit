@@ -305,6 +305,7 @@ object Collect {
     // ---------------- Focus ----------------
 
     fun focus(c: Context): FocusInfo {
+        if (Store.focusEndAt(c) in 1..System.currentTimeMillis()) Focus.onAlarm(c)
         val end = Store.focusEndAt(c)
         val paused = Store.focusPausedLeft(c)
         val now = System.currentTimeMillis()

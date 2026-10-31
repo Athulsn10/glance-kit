@@ -18,6 +18,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.TextStyle
 import java.util.Locale
+import java.util.concurrent.Executors
 
 private const val ACTION_NEXT = "com.glassring.widget.NEXT"
 private const val ACTION_PREV = "com.glassring.widget.PREV"
@@ -25,6 +26,7 @@ private const val ACTION_GOTO = "com.glassring.widget.GOTO"
 private const val ACTION_RING = "com.glassring.widget.RING"
 private const val ACTION_PLUS = "com.glassring.widget.PLUS"
 private const val ACTION_STOP = "com.glassring.widget.STOP"
+const val ACTION_FOCUS_DONE = "com.glassring.widget.FOCUS_DONE"
 private const val EXTRA_PAGE = "page"
 
 private const val RING_DP = 76f
@@ -38,10 +40,16 @@ private val AXIS7 = intArrayOf(R.id.a70, R.id.a71, R.id.a72, R.id.a73, R.id.a74,
 private fun widgetIds(c: Context): IntArray =
     AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, RingWidgetReceiver::class.java))
 
+/** One lock for every widget update, so a background refresh can't undo a page switch. */
+private val updateLock = Any()
+
+/** Off-main-thread work for taps, so the home screen never waits on us. */
+private val worker = Executors.newSingleThreadExecutor()
+
 /** Full redraw of every copy of the widget with fresh data. Called on taps, timers and charging ticks. */
-fun refreshAll(c: Context) {
+fun refreshAll(c: Context) = synchronized(updateLock) {
     val ids = widgetIds(c)
-    if (ids.isEmpty()) return
+    if (ids.isEmpty()) return@synchronized
     val s = Collect.snapshot(c)
     AppWidgetManager.getInstance(c).updateAppWidget(ids, Views.root(c, s))
 }
@@ -50,10 +58,10 @@ fun refreshAll(c: Context) {
  * Page switch. Only the visible page, title and dots change, sent as a tiny partial update.
  * All pages are already on the home screen, so this is instant and fades between them.
  */
-fun showPage(c: Context, page: Int) {
+fun showPage(c: Context, page: Int) = synchronized(updateLock) {
     Store.setPage(c, page)
     val ids = widgetIds(c)
-    if (ids.isEmpty()) return
+    if (ids.isEmpty()) return@synchronized
     val p = Store.page(c)
     val rv = RemoteViews(c.packageName, R.layout.widget_root)
     rv.setDisplayedChild(R.id.flipper, p)
@@ -64,7 +72,7 @@ fun showPage(c: Context, page: Int) {
 class RingWidgetReceiver : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        refreshAll(context)
+        background { refreshAll(context) }
         RefreshWorker.schedule(context)
     }
 
@@ -72,9 +80,35 @@ class RingWidgetReceiver : AppWidgetProvider() {
         RefreshWorker.schedule(context)
     }
 
+    /** Last widget removed: stop all background refreshes. */
+    override fun onDisabled(context: Context) {
+        RefreshWorker.cancelAll(context)
+        Focus.cancelAlarm(context)
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        when (intent.action) {
+        val action = intent.action ?: return
+        if (action !in OUR_ACTIONS) return
+        background { handle(context, intent, action) }
+    }
+
+    /** Runs the work on a background thread while keeping the broadcast alive until it's done. */
+    private fun background(block: () -> Unit) {
+        val pending = goAsync()
+        worker.execute {
+            try {
+                block()
+            } catch (e: Exception) {
+                android.util.Log.w("GlanceKit", "Widget update failed", e)
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    private fun handle(context: Context, intent: Intent, action: String) {
+        when (action) {
             ACTION_NEXT -> showPage(context, Store.page(context) + 1)
             ACTION_PREV -> showPage(context, Store.page(context) - 1)
             ACTION_GOTO -> showPage(context, intent.getIntExtra(EXTRA_PAGE, 0))
@@ -95,7 +129,15 @@ class RingWidgetReceiver : AppWidgetProvider() {
                 Focus.stop(context)
                 refreshAll(context)
             }
+            ACTION_FOCUS_DONE -> {
+                Focus.onAlarm(context)
+                refreshAll(context)
+            }
         }
+    }
+
+    private companion object {
+        val OUR_ACTIONS = setOf(ACTION_NEXT, ACTION_PREV, ACTION_GOTO, ACTION_RING, ACTION_PLUS, ACTION_STOP, ACTION_FOCUS_DONE)
     }
 }
 
@@ -112,8 +154,9 @@ object Views {
         rv.addView(R.id.flipper, batteryPage(c, s))
         rv.addView(R.id.flipper, dataPage(c, s))
         rv.addView(R.id.flipper, focusPage(c, s))
-        rv.setDisplayedChild(R.id.flipper, s.page)
-        header(rv, s.page, titleFor(s, s.page))
+        val page = Store.page(c)
+        rv.setDisplayedChild(R.id.flipper, page)
+        header(rv, page, titleFor(s, page))
         rv.setOnClickPendingIntent(R.id.prev, broadcast(c, ACTION_PREV, 1))
         rv.setOnClickPendingIntent(R.id.next, broadcast(c, ACTION_NEXT, 2))
         for (i in DOTS.indices) {
