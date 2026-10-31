@@ -610,7 +610,11 @@ class MainActivity : Activity(), SensorEventListener {
                 onFinished = { reload(alsoWidgets = true) }
                 setOnClickListener { FocusActivity.open(context) }
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 380)))
+            addView(Ui.spacer(context, 10))
+            addView(Ui.label(context, "SCENE"))
             addView(Ui.spacer(context, 8))
+            addView(FocusUi.scenes(context, focusHaptics) { adapter.notifyItemChanged(TAB_FOCUS) })
+            addView(Ui.spacer(context, 14))
             addView(FocusUi.controls(context, f, focusHaptics) { reload() })
             addView(Ui.spacer(context, 10))
             addView(Ui.pill(context, "Full screen", false) { FocusActivity.open(context) },

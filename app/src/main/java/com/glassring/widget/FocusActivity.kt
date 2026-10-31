@@ -31,6 +31,28 @@ object FocusUi {
         }
     }
 
+    /** Scene picker: a row of chips, scrolls sideways if it doesn't fit. */
+    fun scenes(c: Context, haptics: Haptics, changed: () -> Unit): android.view.View {
+        val now = Ambient.kind(c)
+        val row = Ui.hstack(c)
+        Ambient.Kind.values().forEachIndexed { i, k ->
+            val on = k == now
+            row.addView(Ui.text(c, k.label, 13f, if (on) Ui.BG else Ui.WHITE, medium = true, gravity = Gravity.CENTER).apply {
+                setPadding(Ui.dp(c, 16), 0, Ui.dp(c, 16), 0)
+                background = Ui.rounded(if (on) Ui.WHITE else 0xFF1E1E1E.toInt(), Ui.dp(c, 18).toFloat())
+                setOnClickListener {
+                    Ambient.setKind(c, k)
+                    haptics.tick(0.5f)
+                    changed()
+                }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(c, 36)).apply { if (i > 0) marginStart = Ui.dp(c, 8) })
+        }
+        return android.widget.HorizontalScrollView(c).apply {
+            isHorizontalScrollBarEnabled = false
+            addView(row)
+        }
+    }
+
     fun controls(c: Context, f: FocusInfo, haptics: Haptics, changed: () -> Unit): LinearLayout = Ui.vstack(c).apply {
         if (!f.running && !f.paused) {
             // Pick a length.
@@ -90,7 +112,7 @@ class FocusActivity : Activity() {
             setOnClickListener { finish() }
         })
         root.addView(top)
-        view = FocusView(this).apply { onFinished = { load() } }
+        view = FocusView(this).apply { onFinished = { load() }; cornerDp = 0f }
         root.addView(view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         bottom = Ui.vstack(this).apply { setPadding(Ui.dp(context, 24), 0, Ui.dp(context, 24), Ui.dp(context, 40)) }
         root.addView(bottom)
@@ -112,6 +134,8 @@ class FocusActivity : Activity() {
         val f = Collect.focus(this)
         view.bind(f, Store.focusMinutes(this))
         bottom.removeAllViews()
+        bottom.addView(FocusUi.scenes(this, haptics) { load() })
+        bottom.addView(Ui.spacer(this, 12))
         bottom.addView(FocusUi.controls(this, f, haptics) { load() })
     }
 

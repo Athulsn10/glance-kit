@@ -37,6 +37,10 @@ class FocusView(context: Context) : View(context) {
     private var sessions = 0
     private var idleMs = 25 * 60_000L
     var goal = 4
+    /** Rounded corners for the scene, to sit neatly inside a card (0 in full screen). */
+    var cornerDp = 18f
+    private var lastFrame = 0L
+    private val clip = android.graphics.Path()
     /** Called once when a running session reaches zero on screen. */
     var onFinished: (() -> Unit)? = null
 
@@ -97,6 +101,21 @@ class FocusView(context: Context) : View(context) {
         val stroke = r * 0.075f
         val accent = Config.ACCENT
 
+        // The calm background scene (rain, leaves, snow...), behind everything else.
+        val dt = if (lastFrame == 0L) 1 / 30f else ((now - lastFrame) / 1000f).coerceIn(0f, 0.05f)
+        lastFrame = now
+        Ambient.get(Ambient.kind(context), width, height, resources.displayMetrics.density)?.let { scene ->
+            scene.step(dt)
+            canvas.save()
+            if (cornerDp > 0) {
+                clip.reset()
+                clip.addRoundRect(0f, 0f, w, h, dp(cornerDp), dp(cornerDp), android.graphics.Path.Direction.CW)
+                canvas.clipPath(clip)
+            }
+            scene.draw(canvas)
+            canvas.restore()
+        }
+
         val rem = remaining()
         val frac = when {
             running || paused -> (rem.toFloat() / length).coerceIn(0f, 1f)
@@ -112,6 +131,9 @@ class FocusView(context: Context) : View(context) {
             floatArrayOf(0.55f, 1f), Shader.TileMode.CLAMP)
         canvas.drawCircle(cx, cy, r * 1.45f, fill)
         fill.shader = null
+        // Darken the inside of the ring a little so the time stays easy to read over the scene.
+        fill.color = 0xB30B0B0B.toInt()
+        canvas.drawCircle(cx, cy, r - stroke * 0.5f, fill)
 
         // Minute ticks around the outside: lit for the time that's left.
         val ticks = 60
@@ -221,7 +243,8 @@ class FocusView(context: Context) : View(context) {
         override fun run() {
             val onScreen = isShown && getGlobalVisibleRect(vis)
             if (onScreen) invalidate()
-            val busy = running || SystemClock.uptimeMillis() < celebrateUntil || embers.isNotEmpty()
+            val busy = running || SystemClock.uptimeMillis() < celebrateUntil || embers.isNotEmpty() ||
+                Ambient.kind(context) != Ambient.Kind.NONE
             postDelayed(this, if (!onScreen) 1000L else if (busy) 33L else 66L)
         }
     }
