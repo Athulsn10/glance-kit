@@ -1,63 +1,97 @@
 # Glance Kit
 
-A growing set of glass-style Android home screen widgets, built with Jetpack Glance.
+A collection of minimal, glass-style home screen widgets for Android, built with
+[Jetpack Glance](https://developer.android.com/develop/ui/compose/glance).
 
-| Widget | What it does |
-|---|---|
-| **Glass Ring** | Day ring, battery health, data used and a focus timer in one 4×2 widget |
+Every widget reads its data directly from the device. No accounts, no sign-in, no internet access.
 
-## Glass Ring
+## Widgets
 
-One glass widget for your Pixel with four pages:
+| Widget | Size | What it shows |
+|---|---|---|
+| **Glass Ring** | 4×2, resizable | Day progress, battery health, data used today and a focus timer, on four tap-through pages |
 
-1. **Time:** day progress ring with sunrise and sunset markers. Tap the ring for week, month and year.
-2. **Battery health:** charging speed in watts, time to 80%, cycle count, temperature, heat status.
-3. **Data:** mobile and Wi-Fi used since midnight, plus an hour-by-hour chart.
-4. **Focus:** 25-minute timer that ticks live, Pause, +5 min, today's total and streak.
+More widgets will be added over time.
 
-Everything comes from the phone itself. No accounts, no internet.
+### Glass Ring
 
-## Get the APK without Android Studio
+| Page | Shows | Tap the ring to |
+|---|---|---|
+| Time | Progress through the day with sunrise and sunset markers | Switch between day, week, month and year |
+| Battery | Charge level, charging speed, time to charge limit, cycle count, temperature, thermal status | Refresh |
+| Data | Mobile and Wi-Fi data used since midnight, with an hourly chart | Refresh |
+| Focus | Countdown timer, time focused today and daily streak | Start, pause or resume |
 
-Every push to this repo builds the app on GitHub and publishes it here:
+Tap the text side of the widget to go to the next page, or tap a dot to jump to a page.
+
+## Requirements
+
+- Android 12 (API 31) or later
+- **Usage access** permission, for the data page only. The app asks for it on first launch.
+
+## Install
+
+### Download the APK
+
+Each push to `main` builds the app and publishes it as the latest release:
 
 **[Download GlanceKit.apk](https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk)**
 
-Open that link on your phone and tap the file to install (allow "Install unknown apps" when asked).
+Open the file on your phone to install it. Android will ask you to allow installs from your browser or file manager.
 
-## Install it with Android Studio (about 10 minutes the first time)
+### Build from source
 
-1. Install **Android Studio** from developer.android.com/studio.
-2. Unzip this folder, then in Android Studio choose **File > Open** and pick the `glance-kit` folder. Wait for "Gradle sync" to finish (first time downloads a few hundred MB).
-3. On your Pixel: **Settings > About phone**, tap **Build number** 7 times. Then **Settings > System > Developer options**, turn on **USB debugging**.
-4. Plug the phone in, allow the debugging prompt, pick your Pixel in the device menu at the top and press the green **Run** button.
-5. The Glance Kit app opens on your phone. Tap **Allow data usage access**, turn it on for Glance Kit, go back, then tap **Add widget to home screen**.
+Requires JDK 17 and the Android SDK (Android Studio installs both).
 
-### Want an APK file instead?
+```bash
+git clone https://github.com/Athulsn10/glance-kit.git
+cd glance-kit
+./gradlew assembleDebug
+```
 
-In Android Studio: **Build > Build App Bundle(s) / APK(s) > Build APK(s)**. The file appears at
-`app/build/outputs/apk/debug/app-debug.apk`. Copy it to your phone and open it to install
-(allow "Install unknown apps" for your file manager when asked).
+The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. To install it on a connected device, run
+`./gradlew installDebug` with USB debugging turned on.
 
-## Using it
+## Setup after installing
 
-- **Next page:** tap the text side of the widget.
-- **Jump to a page:** tap a dot at the bottom.
-- **Ring tap:** time page → day / week / month / year. Focus page → start, pause, resume. Battery and data → refresh.
-- The widget refreshes every 15 minutes on its own and whenever you tap it.
+1. Open **Glance Kit**.
+2. Tap **Allow data usage access** and turn it on for Glance Kit.
+3. Tap **Add widget to home screen**, or long-press your home screen and choose **Widgets > Glance Kit**.
 
-## Change things
+## Configuration
 
-Open `app/src/main/java/com/glassring/widget/Config.kt`:
+Settings live in [`Config.kt`](app/src/main/java/com/glassring/widget/Config.kt):
 
-- `LATITUDE`, `LONGITUDE`: for sunrise and sunset (set to Thrissur).
-- `ACCENT`: the accent colour.
-- `FOCUS_MINUTES`: focus session length.
-- `CHARGE_LIMIT`: set to 100 if you don't use the 80% charging limit.
+| Setting | Purpose | Default |
+|---|---|---|
+| `LATITUDE`, `LONGITUDE` | Location used to calculate sunrise and sunset | Thrissur, India |
+| `ACCENT` | Accent colour (ARGB) | `#FF6A3D` |
+| `FOCUS_MINUTES` | Length of a focus session | 25 |
+| `CHARGE_LIMIT` | Charge limit marked on the battery ring. Set to 100 if you don't limit charging. | 80 |
 
-## Known limits
+## Project structure
 
-- **Glass look:** Android widgets can't blur what's behind them, so the glass is a translucent fill with a soft highlight. It looks best on dark wallpapers.
-- **Cycle count:** shows "–" if your Pixel 8 doesn't report it to apps.
-- **Slider:** Android widgets can't swipe sideways, so pages change by tap.
-- **Timing:** Android limits background refresh to every 15 minutes. The focus countdown still ticks every second because the system draws it.
+```
+app/src/main/java/com/glassring/widget/
+├── RingWidget.kt     Widget layout, pages and tap actions
+├── Collect.kt        Reads time, battery and data usage from the device
+├── RingRenderer.kt   Draws the rings and charts as bitmaps
+├── Focus.kt          Focus timer and background refresh workers
+├── Store.kt          Saved state (current page, timer, streak)
+├── Config.kt         User settings
+└── MainActivity.kt   Setup screen
+```
+
+## Known limitations
+
+- **Glass effect:** Android widgets can't blur what's behind them. The glass look is a translucent fill with a soft highlight, and works best on dark wallpapers.
+- **Battery cycle count:** only shown on devices that report it to apps (Android 14 and later, and not all phones). Otherwise it shows "–".
+- **Page switching:** Android widgets don't support sideways swipes, so pages change on tap.
+- **Refresh rate:** Android limits background updates to every 15 minutes. Tapping the widget refreshes it straight away, and the focus countdown ticks every second because the system draws it.
+
+## Adding a widget
+
+1. Create a `GlanceAppWidget` and a `GlanceAppWidgetReceiver` for it.
+2. Add a provider file in `app/src/main/res/xml/` with its size and description.
+3. Register the receiver in `AndroidManifest.xml` with its own label.
+4. Add a row to the widget table at the top of this README.
