@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Top row: ring | headline + sub | buttons. Below: full-width chart with axis labels. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -70,64 +71,40 @@
 
             <TextView
                 android:id="@+id/headline"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif-medium"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="#FFFFFFFF"
-                android:textSize="24sp" />
+                style="@style/Headline" />
 
             <TextView
                 android:id="@+id/sub"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFBDBDBD"
-                android:textSize="13sp" />
+                style="@style/Sub" />
+        </LinearLayout>
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="32dp"
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/btn_primary"
+                style="@style/Pill"
+                android:background="@drawable/pill_primary"
+                android:textColor="#FF0B0B0B" />
+
+            <TextView
+                android:id="@+id/btn_secondary"
+                style="@style/Pill"
                 android:layout_marginTop="6dp"
-                android:orientation="horizontal">
-
-                <TextView
-                    android:id="@+id/btn_primary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:background="@drawable/pill_primary"
-                    android:fontFamily="sans-serif-medium"
-                    android:gravity="center"
-                    android:paddingStart="16dp"
-                    android:paddingEnd="16dp"
-                    android:textColor="#FF0B0B0B"
-                    android:textSize="13sp" />
-
-                <TextView
-                    android:id="@+id/btn_secondary"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:layout_marginStart="6dp"
-                    android:background="@drawable/pill_secondary"
-                    android:fontFamily="sans-serif-medium"
-                    android:gravity="center"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="13sp" />
-            </LinearLayout>
+                android:background="@drawable/pill_secondary"
+                android:textColor="#FFFFFFFF" />
         </LinearLayout>
     </LinearLayout>
 
     <ImageView
         android:id="@+id/chart"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:layout_marginTop="6dp"
+        android:layout_height="46dp"
+        android:layout_marginTop="4dp"
         android:scaleType="fitXY" />
 
     <include layout="@layout/axis" />

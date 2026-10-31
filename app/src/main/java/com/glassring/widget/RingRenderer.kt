@@ -113,15 +113,18 @@ object RingRenderer {
         highlight: Int = -1,
         baseColor: Int = WHITE,
         highlightColor: Int = Config.ACCENT,
+        minPeak: Long = 1L,
     ): Bitmap {
         val (bmp, s) = newBitmap(c, widthDp, heightDp, 2f)
         val w = bmp.width.toFloat()
         val h = bmp.height.toFloat()
         val cv = Canvas(bmp)
         val n = a.size
-        val gap = if (n > 12) w * 0.009f else w * 0.045f
-        val bw = (w - gap * (n - 1)) / n
-        var peak = 1L
+        // Each bar sits centred in its own column (so it lines up with the axis labels),
+        // and is never wider than 18dp so few bars don't turn into blocks.
+        val slot = w / n
+        val bw = min(slot * (if (n > 12) 0.72f else 0.5f), 18f * s)
+        var peak = max(1L, minPeak)
         for (i in 0 until n) peak = max(peak, a[i] + (b?.get(i) ?: 0L))
         val minH = 3f * s
         val radius = min(bw / 2f, 4f * s)
@@ -133,7 +136,7 @@ object RingRenderer {
         cv.drawLine(0f, 1f, w, 1f, grid)
 
         for (i in 0 until n) {
-            val x = i * (bw + gap)
+            val x = i * slot + (slot - bw) / 2f
             val total = a[i] + (b?.get(i) ?: 0L)
             if (i > lastIndex || total <= 0L) {
                 p.color = FAINT
@@ -162,13 +165,21 @@ object RingRenderer {
     }
 
     /** Battery level over the last 24 hours; charging stretches in the accent colour. */
-    fun batteryHistory(c: Context, widthDp: Float, heightDp: Float, pts: List<Sampler.BattPoint>, limit: Int): Bitmap {
+    fun batteryHistory(
+        c: Context,
+        widthDp: Float,
+        heightDp: Float,
+        pts: List<Sampler.BattPoint>,
+        limit: Int,
+        spanMinutes: Long = 24 * 60L,
+    ): Bitmap {
         val (bmp, s) = newBitmap(c, widthDp, heightDp, 2f)
         val w = bmp.width.toFloat()
         val h = bmp.height.toFloat()
         val cv = Canvas(bmp)
-        val top = 3f * s
-        val bottom = h - 2f * s
+        val dot = 4f * s
+        val top = dot + 1f * s
+        val bottom = h - dot - 1f * s
         fun y(level: Int) = bottom - (bottom - top) * level / 100f
 
         val grid = Paint().apply { color = GRID; strokeWidth = 1f * s }
@@ -183,16 +194,23 @@ object RingRenderer {
             }
             cv.drawLine(0f, y(limit), w, y(limit), dash)
         }
-        if (pts.size < 2) return bmp
-
         val now = System.currentTimeMillis() / 60_000L
-        val start = now - 24 * 60
-        fun x(m: Long) = ((m - start).toFloat() / (24 * 60)).coerceIn(0f, 1f) * w
+        val start = now - spanMinutes
+        val left = 1f * s
+        val right = w - dot - 1f * s
+        fun x(m: Long) = left + ((m - start).toFloat() / spanMinutes).coerceIn(0f, 1f) * (right - left)
+        val shown = pts.filter { it.minute >= start }
+        if (shown.isEmpty()) return bmp
+        if (shown.size == 1) {
+            val p = shown[0]
+            cv.drawCircle(x(p.minute), y(p.level), dot, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WHITE })
+            return bmp
+        }
 
         val fill = Path().apply {
-            moveTo(x(pts.first().minute), bottom)
-            for (pt in pts) lineTo(x(pt.minute), y(pt.level))
-            lineTo(x(pts.last().minute), bottom)
+            moveTo(x(shown.first().minute), bottom)
+            for (pt in shown) lineTo(x(pt.minute), y(pt.level))
+            lineTo(x(shown.last().minute), bottom)
             close()
         }
         cv.drawPath(fill, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1C1C1C.toInt() })
@@ -202,14 +220,14 @@ object RingRenderer {
             strokeWidth = 2.2f * s
             strokeCap = Paint.Cap.ROUND
         }
-        for (i in 1 until pts.size) {
-            val a = pts[i - 1]
-            val b = pts[i]
+        for (i in 1 until shown.size) {
+            val a = shown[i - 1]
+            val b = shown[i]
             line.color = if (a.charging) Config.ACCENT else WHITE
             cv.drawLine(x(a.minute), y(a.level), x(b.minute), y(b.level), line)
         }
-        val last = pts.last()
-        cv.drawCircle(x(last.minute), y(last.level), 3.5f * s, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WHITE })
+        val last = shown.last()
+        cv.drawCircle(x(last.minute), y(last.level), dot, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WHITE })
         return bmp
     }
 

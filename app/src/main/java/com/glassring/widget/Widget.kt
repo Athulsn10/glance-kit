@@ -213,29 +213,31 @@ object Views {
         rv.setTextViewText(R.id.ring_value, number("${(t.fraction * 100).toInt()}", "%"))
         rv.setTextViewText(R.id.ring_caption, t.caption)
         rv.setTextViewText(R.id.headline, t.headline)
-        rv.setTextViewText(R.id.sub, t.sub)
         val today = LocalDate.now()
+        val week = today.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)
         when (t.mode) {
             0 -> {
-                val rise = t.sunrise?.let { clock(it) }
-                val set = t.sunset?.let { clock(it) }
-                rv.setTextViewText(R.id.detail, if (rise != null && set != null) "Sunrise $rise · Sunset $set" else "")
+                rv.setTextViewText(R.id.sub, t.sub)
+                stats(rv, t.sunrise?.let { clock(it) } ?: "–", "SUNRISE", t.sunset?.let { clock(it) } ?: "–", "SUNSET")
                 chart(rv, RingRenderer.daylight(c, CHART_W_DP, CHART_H_DP, t.fraction, t.sunrise, t.sunset))
                 axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
             }
             1 -> {
-                rv.setTextViewText(R.id.detail, "Week of ${today.minusDays(today.dayOfWeek.value - 1L).format(dayMonth)}")
+                rv.setTextViewText(R.id.sub, "Week of ${today.minusDays(today.dayOfWeek.value - 1L).format(dayMonth)}")
+                stats(rv, "W$week", "WEEK", "${today.dayOfWeek.value}/7", "DAY")
                 chart(rv, RingRenderer.segments(c, CHART_W_DP, CHART_H_DP, 7, t.fraction))
                 axis7(rv, Array(7) { java.time.DayOfWeek.of(it + 1).getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase() })
             }
             2 -> {
                 val len = today.lengthOfMonth()
-                rv.setTextViewText(R.id.detail, today.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " ${today.year}")
+                rv.setTextViewText(R.id.sub, today.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " ${today.year}")
+                stats(rv, "${today.dayOfMonth}/$len", "DAY", "W$week", "WEEK")
                 chart(rv, RingRenderer.segments(c, CHART_W_DP, CHART_H_DP, len, t.fraction))
                 axis4(rv, "1", "${1 + len / 4}", "${1 + len / 2}", "${1 + 3 * len / 4}", "$len")
             }
             else -> {
-                rv.setTextViewText(R.id.detail, "Week ${today.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)} of 52")
+                rv.setTextViewText(R.id.sub, "Q${(today.monthValue - 1) / 3 + 1} of ${today.year}")
+                stats(rv, "${today.dayOfYear}", "DAY", "W$week", "WEEK")
                 chart(rv, RingRenderer.segments(c, CHART_W_DP, CHART_H_DP, 12, t.fraction))
                 axis4(rv, "JAN", "APR", "JUL", "OCT", "DEC")
             }
@@ -266,22 +268,26 @@ object Views {
                 else -> "${b.level}%"
             },
         )
-        rv.setTextViewText(
-            R.id.sub,
-            when {
-                b.minutesToTarget != null -> "${b.target}% in ${Collect.fmtMinutes(b.minutesToTarget.toLong())}"
-                b.charging -> "Charging to ${b.target}%"
-                b.plugged -> "Charging paused to protect the battery"
-                else -> "At current use"
-            },
+        val first = when {
+            b.minutesToTarget != null -> "${b.target}% in ${Collect.fmtMinutes(b.minutesToTarget.toLong())}"
+            b.charging -> "Charging to ${b.target}%"
+            b.plugged -> "Paused to protect battery"
+            else -> "At current use"
+        }
+        rv.setTextViewText(R.id.sub, "$first · ${b.tempC.toInt()}°C")
+        stats(
+            rv,
+            b.healthPct?.let { "~$it%" } ?: "–", "HEALTH",
+            b.cycles?.toString() ?: b.thermal, if (b.cycles != null) "CYCLES" else "THERMAL",
         )
-        val parts = mutableListOf<String>()
-        parts += b.healthPct?.let { "Health ~$it%" } ?: "Health: measuring"
-        b.cycles?.let { parts += "$it cycles" }
-        parts += "${b.tempC.toInt()}°C"
-        rv.setTextViewText(R.id.detail, parts.joinToString(" · "))
-        chart(rv, RingRenderer.batteryHistory(c, CHART_W_DP, CHART_H_DP, s.batteryHistory, b.target))
-        axis4(rv, "24H AGO", "18H", "12H", "6H", "NOW")
+
+        // The chart covers only the time we have data for (up to 24 hours), so a fresh
+        // install doesn't squash everything against the right edge.
+        val nowMin = System.currentTimeMillis() / 60_000L
+        val firstMin = s.batteryHistory.firstOrNull()?.minute ?: nowMin
+        val span = (nowMin - firstMin).coerceIn(60L, 24 * 60L)
+        chart(rv, RingRenderer.batteryHistory(c, CHART_W_DP, CHART_H_DP, s.batteryHistory, b.target, span))
+        axis4(rv, ago(span) + " AGO", ago(span * 3 / 4), ago(span / 2), ago(span / 4), "NOW")
         ringClick(c, rv)
         return rv
     }
@@ -309,16 +315,19 @@ object Views {
         rv.setTextViewText(R.id.ring_value, number("$pct", "%"))
         rv.setTextViewText(R.id.ring_caption, "MOBILE")
         rv.setTextViewText(R.id.headline, Collect.fmtBytes(m))
-        rv.setTextViewText(R.id.sub, if (s.dataWeek) "mobile data this week" else "mobile data today")
         rv.setTextViewText(
-            R.id.detail,
-            "${Collect.fmtBytes(w)} on Wi-Fi" + if (!d.accurate && !s.dataWeek) " · since install" else "",
+            R.id.sub,
+            (if (s.dataWeek) "mobile, last 7 days" else "mobile today") + if (!d.accurate && !s.dataWeek) " · since install" else "",
         )
+        stats(rv, Collect.fmtBytes(w), "WI-FI", Collect.fmtBytes(m + w), "TOTAL")
         if (s.dataWeek) {
-            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, d.weekMobile, d.weekWifi))
+            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, d.weekMobile, d.weekWifi, minPeak = 50_000_000L))
             axis7(rv, lastSevenDayNames())
         } else {
-            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, d.hourlyMobile, d.hourlyWifi, lastIndex = d.currentHour))
+            chart(
+                rv,
+                RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, d.hourlyMobile, d.hourlyWifi, lastIndex = d.currentHour, minPeak = 10_000_000L),
+            )
             axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
         }
         ringClick(c, rv)
@@ -346,10 +355,10 @@ object Views {
             rv.setTextViewText(R.id.ring_caption, if (f.paused) "PAUSED" else "READY")
         }
         rv.setTextViewText(R.id.headline, Collect.fmtMinutes(f.todayMs / 60_000L))
-        rv.setTextViewText(
-            R.id.sub,
-            "focused today" + if (f.sessions > 0) " · ${f.sessions} done" else "",
-        )
+        val subParts = mutableListOf("focused today")
+        if (f.sessions > 0) subParts += "${f.sessions} done"
+        if (f.streak > 1) subParts += "${f.streak}-day streak"
+        rv.setTextViewText(R.id.sub, subParts.joinToString(" · "))
         val primary: String
         val secondary: String?
         val secondaryAction: String?
@@ -367,7 +376,8 @@ object Views {
         } else {
             rv.setViewVisibility(R.id.btn_secondary, View.GONE)
         }
-        chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, f.week, null, highlight = 6))
+        // Scale to at least one hour so a few minutes don't fill the chart.
+        chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, f.week, null, highlight = 6, minPeak = 60 * 60_000L))
         axis7(rv, lastSevenDayNames())
         ringClick(c, rv)
         return rv
@@ -382,6 +392,16 @@ object Views {
     }
 
     private fun chart(rv: RemoteViews, bmp: Bitmap) = rv.setImageViewBitmap(R.id.chart, bmp)
+
+    private fun stats(rv: RemoteViews, v1: String, l1: String, v2: String, l2: String) {
+        rv.setTextViewText(R.id.stat1_value, v1)
+        rv.setTextViewText(R.id.stat1_label, l1)
+        rv.setTextViewText(R.id.stat2_value, v2)
+        rv.setTextViewText(R.id.stat2_label, l2)
+    }
+
+    /** "18H" or "45M" for axis labels. */
+    private fun ago(minutes: Long): String = if (minutes >= 120) "${minutes / 60}H" else "${minutes}M"
 
     private fun axis4(rv: RemoteViews, vararg labels: String) {
         rv.setViewVisibility(R.id.axis4, View.VISIBLE)

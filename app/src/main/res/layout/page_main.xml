@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Top row: ring | headline + sub | two stats. Below: full-width chart with axis labels. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -60,42 +61,32 @@
 
             <TextView
                 android:id="@+id/headline"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:fontFamily="sans-serif-medium"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="#FFFFFFFF"
-                android:textSize="24sp" />
+                style="@style/Headline" />
 
             <TextView
                 android:id="@+id/sub"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FFBDBDBD"
-                android:textSize="13sp" />
+                style="@style/Sub" />
+        </LinearLayout>
 
-            <TextView
-                android:id="@+id/detail"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="#FF8A8A8A"
-                android:textSize="12sp" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView android:id="@+id/stat1_value" style="@style/StatValue" />
+            <TextView android:id="@+id/stat1_label" style="@style/StatLabel" />
+            <TextView android:id="@+id/stat2_value" style="@style/StatValue" android:layout_marginTop="8dp" />
+            <TextView android:id="@+id/stat2_label" style="@style/StatLabel" />
         </LinearLayout>
     </LinearLayout>
 
     <ImageView
         android:id="@+id/chart"
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:layout_marginTop="6dp"
+        android:layout_height="46dp"
+        android:layout_marginTop="4dp"
         android:scaleType="fitXY" />
 
     <include layout="@layout/axis" />
