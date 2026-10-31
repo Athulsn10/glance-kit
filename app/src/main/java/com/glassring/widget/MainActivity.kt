@@ -54,6 +54,9 @@ class MainActivity : Activity(), SensorEventListener {
     private val main = Handler(Looper.getMainLooper())
     private var snap: Snapshot? = null
     private var apps: Device.AppUsage? = null
+    private var storage: Device.AppStorage? = null
+    private var appsTab = 0 // 0 = screen time, 1 = storage
+    @Volatile private var storageAt = 0L
     private val phoneTick = object : Runnable {
         override fun run() {
             if (resumed && pager.currentItem == TAB_PHONE) reload()
@@ -113,6 +116,8 @@ class MainActivity : Activity(), SensorEventListener {
                 }
             })
         }
+        // No cross-fade when a tab redraws with fresh data.
+        (pager.getChildAt(0) as? RecyclerView)?.itemAnimator = null
         root.addView(pager, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
 
@@ -162,16 +167,22 @@ class MainActivity : Activity(), SensorEventListener {
     }
 
     /** Collects fresh data off the main thread, then redraws the tabs. */
-    private fun reload(alsoWidgets: Boolean = false) {
+    private fun reload(alsoWidgets: Boolean = false, forceStorage: Boolean = false) {
         if (isDestroyed || io.isShutdown) return
         io.execute {
             val s = runCatching { Collect.snapshot(applicationContext) }.getOrNull()
             val a = runCatching { Device.topApps(applicationContext) }.getOrNull()
+            // App sizes change slowly and are costly to add up: refresh at most every 5 minutes.
+            val now = SystemClock.elapsedRealtime()
+            val st = if (storage == null || forceStorage || now - storageAt > 300_000) {
+                runCatching { Device.appStorage(applicationContext) }.getOrNull()?.also { storageAt = now }
+            } else null
             if (alsoWidgets) runCatching { refreshAll(applicationContext) }
             main.post {
                 if (isDestroyed) return@post
                 if (s != null) snap = s
                 if (a != null) apps = a
+                if (st != null) storage = st
                 adapter.notifyDataSetChanged()
             }
         }
@@ -239,9 +250,15 @@ class MainActivity : Activity(), SensorEventListener {
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             val frame = holder.itemView as FrameLayout
-            (frame.getChildAt(0) as? ScrollView)?.let { scrollPos[holder.itemViewType] = it.scrollY }
-            frame.removeAllViews()
-            val scroll = ScrollView(frame.context).apply { isVerticalScrollBarEnabled = false }
+            // Reuse the page's scroll view and swap only its content, then put the scroll
+            // position back before the next frame is drawn. Rebuilding the whole page and
+            // restoring the position a frame later is what made the screen flash.
+            val scroll = (frame.getChildAt(0) as? ScrollView) ?: ScrollView(frame.context).apply {
+                isVerticalScrollBarEnabled = false
+                frame.addView(this, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            }
+            val y = if (scroll.childCount > 0) scroll.scrollY else scrollPos[position] ?: 0
+            scrollPos[position] = y
             val col = Ui.vstack(frame.context).apply { setPadding(Ui.dp(context, 16), Ui.dp(context, 8), Ui.dp(context, 16), Ui.dp(context, 32)) }
             val s = snap
             if (s == null) {
@@ -251,9 +268,17 @@ class MainActivity : Activity(), SensorEventListener {
                     col.addView(Ui.text(frame.context, "Couldn't load this tab: ${it.message}", 13f, Ui.FAINT))
                 }
             }
+            scroll.removeAllViews()
             scroll.addView(col)
-            frame.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            scrollPos[position]?.let { y -> scroll.post { scroll.scrollTo(0, y) } }
+            if (y > 0) {
+                scroll.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+                    override fun onPreDraw(): Boolean {
+                        scroll.viewTreeObserver.removeOnPreDrawListener(this)
+                        scroll.scrollTo(0, y)
+                        return true
+                    }
+                })
+            }
             if (position == TAB_INSTRUMENTS) updateSensors()
         }
     }
@@ -698,7 +723,9 @@ class MainActivity : Activity(), SensorEventListener {
                 "of ${Collect.fmtBytes(p.storageTotal)}",
             ))
         }, 4)
+        add(col, ramCard())
         add(col, topAppsCard())
+        add(col, cacheCard())
         add(col, Ui.card(this, "SYSTEM").apply {
             addView(Ui.statGrid(context, listOf(
                 Collect.fmtBytes(p.ramFree) to "RAM FREE",
@@ -729,44 +756,166 @@ class MainActivity : Activity(), SensorEventListener {
         })
     }
 
-    /** Most-used apps today, refreshed every minute while this tab is open. */
-    private fun topAppsCard(): LinearLayout = Ui.card(this, "MOST USED TODAY").apply {
+    /** Most-used apps today (screen time) or biggest apps (storage), as two tabs. */
+    private fun topAppsCard(): LinearLayout = Ui.card(this, "APPS").apply {
+        // Segmented tabs.
+        val seg = Ui.hstack(context)
+        listOf("Screen time", "Storage").forEachIndexed { i, name ->
+            val on = i == appsTab
+            seg.addView(Ui.text(context, name, 13f, if (on) Ui.BG else Ui.WHITE, medium = true, gravity = android.view.Gravity.CENTER).apply {
+                background = Ui.rounded(if (on) Ui.WHITE else 0xFF1E1E1E.toInt(), Ui.dp(context, 18).toFloat())
+                setOnClickListener {
+                    appsTab = i
+                    adapter.notifyItemChanged(TAB_PHONE)
+                }
+            }, LinearLayout.LayoutParams(0, Ui.dp(context, 36), 1f).apply { if (i > 0) marginStart = Ui.dp(context, 8) })
+        }
+        addView(seg)
+        addView(Ui.spacer(context, 16))
+
         val u = apps
         if (u == null || !u.allowed) {
-            addView(Ui.text(context, "Turn on usage access to see which apps you use most today.", 14f, Ui.SOFT))
+            addView(Ui.text(context, "Turn on usage access to see your apps' screen time and storage.", 14f, Ui.SOFT))
             addView(Ui.spacer(context, 12))
             addView(Ui.pill(context, "Usage access", true) { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) })
             return@apply
         }
-        addView(Ui.statGrid(context, listOf(
-            Collect.fmtMinutes(u.totalMs / 60_000) to "SCREEN TIME",
-            "${u.unlocks}" to "UNLOCKS",
-            "${u.apps.size}" to "APPS USED",
-        )))
-        if (u.apps.isEmpty()) {
+        if (appsTab == 0) {
+            addView(Ui.statGrid(context, listOf(
+                Collect.fmtMinutes(u.totalMs / 60_000) to "SCREEN TIME",
+                "${u.unlocks}" to "UNLOCKS",
+                "${u.apps.size}" to "APPS USED",
+            )))
+            if (u.apps.isEmpty()) {
+                addView(Ui.spacer(context, 12))
+                addView(Ui.text(context, "No app used for more than a minute yet today.", 13f, Ui.FAINT))
+                return@apply
+            }
+            val top = u.apps.first().ms.coerceAtLeast(1)
+            u.apps.forEachIndexed { i, app ->
+                addView(appRow(app.icon, app.label, null, Collect.fmtMinutes(app.ms / 60_000), app.ms.toFloat() / top, i == 0, null))
+            }
             addView(Ui.spacer(context, 12))
-            addView(Ui.text(context, "No app used for more than a minute yet today.", 13f, Ui.FAINT))
-            return@apply
+            addView(Ui.text(context, "Updates every minute while this tab is open.", 12f, Ui.FAINT))
+        } else {
+            val st = storage
+            if (st == null || !st.allowed) {
+                addView(Ui.text(context, "Loading…", 13f, Ui.FAINT)); return@apply
+            }
+            val sorted = st.apps.sortedByDescending { it.total }
+            addView(Ui.statGrid(context, listOf(
+                Collect.fmtBytes(sorted.sumOf { it.total }) to "ALL APPS",
+                Collect.fmtBytes(st.totalCache) to "CACHE",
+                "${sorted.size}" to "APPS",
+            )))
+            val top = sorted.firstOrNull()?.total?.coerceAtLeast(1) ?: 1
+            sorted.take(10).forEachIndexed { i, a ->
+                addView(appRow(a.icon, a.label,
+                    "app ${Collect.fmtBytes(a.app)} · data ${Collect.fmtBytes(a.data)} · cache ${Collect.fmtBytes(a.cache)}",
+                    Collect.fmtBytes(a.total), a.total.toFloat() / top, i == 0, a.pkg))
+            }
+            addView(Ui.spacer(context, 12))
+            addView(Ui.text(context, "Tap an app to open its storage settings.", 12f, Ui.FAINT))
         }
-        val top = u.apps.first().ms.coerceAtLeast(1)
-        u.apps.forEachIndexed { i, app ->
-            val row = Ui.hstack(context).apply { setPadding(0, Ui.dp(context, if (i == 0) 18 else 12), 0, 0) }
-            row.addView(ImageView(context).apply { setImageDrawable(app.icon) }, LinearLayout.LayoutParams(Ui.dp(context, 32), Ui.dp(context, 32)))
-            val mid = Ui.vstack(context).apply { setPadding(Ui.dp(context, 12), 0, Ui.dp(context, 12), 0) }
-            mid.addView(Ui.text(context, app.label, 14f, Ui.WHITE, medium = true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
-            // Bar relative to the most-used app.
-            val bar = Ui.hstack(context).apply { setPadding(0, Ui.dp(context, 6), 0, 0) }
-            val f = app.ms.toFloat() / top
-            bar.addView(View(context).apply { background = Ui.rounded(if (i == 0) Config.ACCENT else Ui.WHITE, Ui.dp(context, 3).toFloat()) },
-                LinearLayout.LayoutParams(0, Ui.dp(context, 6), f.coerceAtLeast(0.02f)))
-            bar.addView(View(context), LinearLayout.LayoutParams(0, Ui.dp(context, 6), (1f - f).coerceAtLeast(0.001f)))
-            mid.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-            row.addView(mid, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            row.addView(Ui.text(context, Collect.fmtMinutes(app.ms / 60_000), 14f, Ui.SOFT))
+    }
+
+    /** One app row: icon, name (and optional detail), bar, value. */
+    private fun appRow(icon: android.graphics.drawable.Drawable?, label: String, detail: String?, value: String, frac: Float, first: Boolean, pkg: String?): LinearLayout {
+        val c = this
+        val row = Ui.hstack(c).apply { setPadding(0, Ui.dp(c, if (first) 18 else 12), 0, 0) }
+        row.addView(ImageView(c).apply { setImageDrawable(icon) }, LinearLayout.LayoutParams(Ui.dp(c, 32), Ui.dp(c, 32)))
+        val mid = Ui.vstack(c).apply { setPadding(Ui.dp(c, 12), 0, Ui.dp(c, 12), 0) }
+        mid.addView(Ui.text(c, label, 14f, Ui.WHITE, medium = true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+        if (detail != null) mid.addView(Ui.text(c, detail, 11f, Ui.FAINT).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, Ui.dp(c, 3), 0, 0)
+        })
+        val bar = Ui.hstack(c).apply { setPadding(0, Ui.dp(c, 6), 0, 0) }
+        val f = frac.coerceIn(0.02f, 1f)
+        bar.addView(View(c).apply { background = Ui.rounded(if (first) Config.ACCENT else Ui.WHITE, Ui.dp(c, 3).toFloat()) },
+            LinearLayout.LayoutParams(0, Ui.dp(c, 6), f))
+        bar.addView(View(c), LinearLayout.LayoutParams(0, Ui.dp(c, 6), (1f - f).coerceAtLeast(0.001f)))
+        mid.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        row.addView(mid, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(Ui.text(c, value, 14f, Ui.SOFT))
+        if (pkg != null) row.setOnClickListener { openAppInfo(pkg) }
+        return row
+    }
+
+    private fun openAppInfo(pkg: String) =
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$pkg")))
+
+    /** Live RAM, apps active in the last 15 minutes, and a shortcut to Android's memory page. */
+    private fun ramCard(): LinearLayout = Ui.card(this, "MEMORY").apply {
+        addView(RamView(context), LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        val recent = apps?.recent.orEmpty()
+        if (recent.isNotEmpty()) {
+            addView(Ui.spacer(context, 18))
+            addView(Ui.label(context, "ACTIVE IN THE LAST 15 MIN"))
+            val row = Ui.hstack(context).apply { setPadding(0, Ui.dp(context, 10), 0, 0) }
+            recent.take(6).forEach { app ->
+                val cell = Ui.vstack(context).apply { gravity = android.view.Gravity.CENTER_HORIZONTAL }
+                cell.addView(ImageView(context).apply { setImageDrawable(app.icon) }, LinearLayout.LayoutParams(Ui.dp(context, 36), Ui.dp(context, 36)))
+                cell.addView(Ui.text(context, app.label, 10f, Ui.SOFT, gravity = android.view.Gravity.CENTER).apply {
+                    maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; setPadding(0, Ui.dp(context, 6), 0, 0)
+                })
+                cell.addView(Ui.text(context, if (app.ms < 60_000) "now" else "${app.ms / 60_000}m ago", 9f, Ui.FAINT, mono = true, gravity = android.view.Gravity.CENTER).apply {
+                    setPadding(0, Ui.dp(context, 3), 0, 0)
+                })
+                row.addView(cell, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            }
             addView(row)
         }
+        addView(Ui.spacer(context, 14))
+        addView(Ui.text(context, "Android doesn't let apps see each other's memory. For RAM per app, open Developer options > Memory.", 12f, Ui.FAINT))
+        addView(Ui.spacer(context, 10))
+        addView(Ui.pill(context, "Developer options", false) {
+            runCatching { startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)) }
+        })
+    }
+
+    /** Cache per app, biggest first, with the system "clear app cache" dialog. */
+    private fun cacheCard(): LinearLayout = Ui.card(this, "CACHE").apply {
+        val st = storage
+        if (st == null || !st.allowed) {
+            addView(Ui.text(context, "Turn on usage access to see how much cache each app holds.", 14f, Ui.SOFT))
+            return@apply
+        }
+        val list = st.apps.filter { it.cache > 0 }.sortedByDescending { it.cache }
+        addView(Ui.text(context, Collect.fmtBytes(st.totalCache), 30f, Ui.WHITE, medium = true))
+        addView(Ui.text(context, "cache across ${list.size} apps", 13f, Ui.SOFT).apply { setPadding(0, Ui.dp(context, 6), 0, 0) })
+        addView(Ui.spacer(context, 14))
+        addView(Ui.pill(context, "Clear cache", true) { clearAllCache() })
+        val top = list.firstOrNull()?.cache?.coerceAtLeast(1) ?: 1
+        list.take(10).forEachIndexed { i, a ->
+            addView(appRow(a.icon, a.label, null, Collect.fmtBytes(a.cache), a.cache.toFloat() / top, i == 0, a.pkg))
+        }
         addView(Ui.spacer(context, 12))
-        addView(Ui.text(context, "Updates every minute while this tab is open.", 12f, Ui.FAINT))
+        addView(Ui.text(context,
+            "Clear cache asks Android to clear every app's cache in shared storage (needs All files access once). " +
+                "Android doesn't let apps clear other apps' main cache, so tap an app above, then Storage & cache > Clear cache.",
+            12f, Ui.FAINT))
+    }
+
+    private fun clearAllCache() {
+        if (android.os.Build.VERSION.SDK_INT < 30) return
+        if (!android.os.Environment.isExternalStorageManager()) {
+            // One-time: let Glance Kit request the system's clear-cache dialog.
+            runCatching {
+                startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+            }
+            return
+        }
+        runCatching {
+            @Suppress("DEPRECATION")
+            startActivityForResult(Intent(android.os.storage.StorageManager.ACTION_CLEAR_APP_CACHE), REQ_CLEAR_CACHE)
+        }
+    }
+
+    @Deprecated("Uses the platform result API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_CLEAR_CACHE) reload(forceStorage = true)
     }
 
     // ----- Setup -----
@@ -865,5 +1014,6 @@ class MainActivity : Activity(), SensorEventListener {
         const val TAB_FOCUS = 4
         const val TAB_INSTRUMENTS = 5
         const val TAB_PHONE = 6
+        private const val REQ_CLEAR_CACHE = 7
     }
 }

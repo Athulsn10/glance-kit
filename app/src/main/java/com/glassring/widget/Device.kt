@@ -1,6 +1,7 @@
 package com.glassring.widget
 
 import android.app.ActivityManager
+import android.app.usage.StorageStatsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.graphics.drawable.Drawable
@@ -108,8 +109,14 @@ object Device {
 
     // ---------------- Most-used apps ----------------
 
-    data class AppUse(val label: String, val icon: Drawable?, val ms: Long)
-    data class AppUsage(val apps: List<AppUse>, val totalMs: Long, val unlocks: Int, val allowed: Boolean)
+    data class AppUse(val label: String, val icon: Drawable?, val ms: Long, val pkg: String = "")
+    data class AppUsage(
+        val apps: List<AppUse>,
+        val totalMs: Long,
+        val unlocks: Int,
+        val allowed: Boolean,
+        val recent: List<AppUse> = emptyList(),   // used in the last 15 minutes
+    )
 
     /** Screen time per app since midnight, most used first. Needs Usage access. */
     fun topApps(c: Context, limit: Int = 8): AppUsage {
@@ -125,14 +132,20 @@ object Device {
             .filter { it.totalTimeInForeground >= 60_000 && it.packageName !in skip }
             .sortedByDescending { it.totalTimeInForeground }
         val total = used.sumOf { it.totalTimeInForeground }
-        val apps = used.take(limit).map { u ->
-            val info = runCatching { pm.getApplicationInfo(u.packageName, 0) }.getOrNull()
-            AppUse(
-                info?.let { pm.getApplicationLabel(it).toString() } ?: u.packageName.substringAfterLast('.'),
+        fun describe(pkg: String, ms: Long): AppUse {
+            val info = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull()
+            return AppUse(
+                info?.let { pm.getApplicationLabel(it).toString() } ?: pkg.substringAfterLast('.'),
                 info?.let { runCatching { pm.getApplicationIcon(it) }.getOrNull() },
-                u.totalTimeInForeground,
+                ms, pkg,
             )
         }
+        val apps = used.take(limit).map { describe(it.packageName, it.totalTimeInForeground) }
+        val recent = stats.values
+            .filter { end - it.lastTimeUsed < 15 * 60_000 && it.packageName !in skip && it.totalTimeInForeground > 0 }
+            .sortedByDescending { it.lastTimeUsed }
+            .take(8)
+            .map { describe(it.packageName, end - it.lastTimeUsed) }
         // Unlocks today: each time the lock screen is dismissed.
         var unlocks = 0
         runCatching {
@@ -143,7 +156,47 @@ object Device {
                 if (e.eventType == UsageEvents.Event.KEYGUARD_HIDDEN) unlocks++
             }
         }
-        return AppUsage(apps, total, unlocks, true)
+        return AppUsage(apps, total, unlocks, true, recent)
+    }
+
+    // ---------------- Storage per app ----------------
+
+    data class AppSize(val label: String, val icon: Drawable?, val pkg: String, val app: Long, val data: Long, val cache: Long) {
+        val total get() = app + data + cache
+    }
+    data class AppStorage(val apps: List<AppSize>, val allowed: Boolean) {
+        val totalCache get() = apps.sumOf { it.cache }
+    }
+
+    /** Size, data and cache of every app with an icon. Needs Usage access. */
+    fun appStorage(c: Context): AppStorage {
+        if (!Collect.hasUsageAccess(c)) return AppStorage(emptyList(), false)
+        val ssm = c.getSystemService(StorageStatsManager::class.java) ?: return AppStorage(emptyList(), false)
+        val pm = c.packageManager
+        val user = android.os.Process.myUserHandle()
+        val pkgs = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            .map { it.activityInfo.packageName }.distinct()
+        val list = pkgs.mapNotNull { pkg ->
+            runCatching {
+                val st = ssm.queryStatsForPackage(android.os.storage.StorageManager.UUID_DEFAULT, pkg, user)
+                val info = pm.getApplicationInfo(pkg, 0)
+                AppSize(pm.getApplicationLabel(info).toString(), runCatching { pm.getApplicationIcon(info) }.getOrNull(),
+                    pkg, st.appBytes, (st.dataBytes - st.cacheBytes).coerceAtLeast(0), st.cacheBytes)
+            }.getOrNull()
+        }
+        return AppStorage(list, true)
+    }
+
+    // ---------------- RAM ----------------
+
+    data class Ram(val total: Long, val free: Long, val low: Boolean, val threshold: Long) {
+        val used get() = total - free
+    }
+
+    fun ram(c: Context): Ram {
+        val mi = ActivityManager.MemoryInfo()
+        c.getSystemService(ActivityManager::class.java)?.getMemoryInfo(mi)
+        return Ram(mi.totalMem, mi.availMem, mi.lowMemory, mi.threshold)
     }
 
     /** Next alarm set in the Clock app, if any. */

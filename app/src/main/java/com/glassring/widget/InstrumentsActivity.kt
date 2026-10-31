@@ -15,7 +15,6 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -80,6 +79,26 @@ class InstrumentsActivity : Activity(), SensorEventListener {
                     marginStart = dp(4); marginEnd = dp(4)
                 })
             }
+        }
+        // Haptics on/off, remembered.
+        val haptics = Haptics(this)
+        TextView(this).apply {
+            textSize = 14f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            gravity = Gravity.CENTER
+            setPadding(dp(14), 0, dp(14), 0)
+            fun paint() {
+                text = if (haptics.enabled) "Haptics on" else "Haptics off"
+                setTextColor(if (haptics.enabled) ACCENT else 0xFF8A8A8A.toInt())
+                background = GradientDrawable().apply { cornerRadius = 22 * d; setColor(0xFF1C1C1C.toInt()) }
+            }
+            paint()
+            setOnClickListener {
+                haptics.enabled = !haptics.enabled
+                if (haptics.enabled) haptics.click()
+                paint()
+            }
+            bar.addView(this, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(44)).apply { marginStart = dp(4) })
         }
         root.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         setContentView(root)
@@ -199,12 +218,39 @@ private const val TRACK = 0xFF262626.toInt()
 class CompassView(context: Context) : View(context) {
 
     private var heading = 0f          // smoothed, degrees 0..360
-    private var target = 0f
     private var hasReading = false
     private var unavailable = false
-    private var lastCardinal = -1
+    private var lastNotch = Int.MIN_VALUE
+    private var onTarget = false
+    private val haptics = Haptics(context)
+    private val prefs = Store.prefs(context)
+    /** Bearing to aim for, or -1 for none. Tap the dial to set or clear it. */
+    private var target = prefs.getFloat("compass_target", -1f)
     var lowAccuracy = false
+        set(v) {
+            if (v && !field) haptics.warn()
+            field = v
+        }
     var showTitle = true
+
+    init {
+        isClickable = true
+        isHapticFeedbackEnabled = false
+        setOnClickListener {
+            if (!hasReading) return@setOnClickListener
+            if (target < 0f) {
+                target = heading.roundToInt() % 360f
+                onTarget = true
+                haptics.set()
+            } else {
+                target = -1f
+                onTarget = false
+                haptics.clear()
+            }
+            prefs.edit().putFloat("compass_target", target).apply()
+            invalidate()
+        }
+    }
 
     private val rot = FloatArray(9)
     private val remapped = FloatArray(9)
@@ -220,21 +266,46 @@ class CompassView(context: Context) : View(context) {
             remapped
         } else rot
         SensorManager.getOrientation(m, orient)
-        target = ((Math.toDegrees(orient[0].toDouble()).toFloat() + 360f) % 360f)
-        if (!hasReading) { heading = target; hasReading = true }
+        val raw = ((Math.toDegrees(orient[0].toDouble()).toFloat() + 360f) % 360f)
+        if (!hasReading) { heading = raw; hasReading = true }
         // Smooth, taking the short way round past north.
-        val diff = ((target - heading + 540f) % 360f) - 180f
+        val diff = ((raw - heading + 540f) % 360f) - 180f
         heading = (heading + diff * 0.18f + 360f) % 360f
-
-        val cardinal = ((heading + 45f) / 90f).toInt() % 4
-        val nearCardinal = abs(((heading + 45f) % 90f) - 45f) < 1.5f
-        if (nearCardinal && cardinal != lastCardinal) {
-            performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
-            lastCardinal = cardinal
-        } else if (!nearCardinal) {
-            lastCardinal = -1
-        }
+        feel()
         invalidate()
+    }
+
+    /** Signed degrees from the heading to the target (positive = turn right). */
+    private fun toTarget() = ((target - heading + 540f) % 360f) - 180f
+
+    /**
+     * Haptics, like turning a notched dial: a faint notch every 5°, firmer every 30°,
+     * a click at E, S and W and a deep thud at north. With a target set, pulses speed up
+     * as you swing towards it and it locks on with a swell and a click.
+     */
+    private fun feel() {
+        val near = target >= 0f && abs(toTarget()) < 20f
+        if (target >= 0f) {
+            val off = abs(toTarget())
+            val lockNow = if (onTarget) off < 3f else off < 1.5f   // a little hysteresis, no chatter
+            if (lockNow && !onTarget) haptics.lock()
+            if (!lockNow && onTarget) haptics.release()
+            onTarget = lockNow
+            if (!lockNow && near) haptics.proximity(1f - off / 20f)
+        }
+        val notch = Math.floorDiv(heading.roundToInt(), 5)
+        if (lastNotch == Int.MIN_VALUE) { lastNotch = notch; return }
+        if (notch == lastNotch) return
+        val up = (notch - lastNotch + 72) % 72 < 36
+        val crossed = (((if (up) notch else lastNotch) * 5) % 360 + 360) % 360
+        lastNotch = notch
+        if (near) return // the target pulses take over here
+        when {
+            crossed == 0 -> haptics.north()
+            crossed % 90 == 0 -> haptics.click(0.9f)
+            crossed % 30 == 0 -> haptics.tick(0.55f)
+            else -> haptics.detent(0.22f)
+        }
     }
 
     private val tickMajor = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; strokeCap = Paint.Cap.ROUND }
@@ -299,6 +370,13 @@ class CompassView(context: Context) : View(context) {
             }
             canvas.restore()
         }
+        if (target >= 0f) {
+            // Target marker just outside the dial.
+            val a = Math.toRadians(target.toDouble())
+            val tr = r + dp(12f)
+            canvas.drawCircle(cx + (tr * sin(a)).toFloat(), cy - (tr * cos(a)).toFloat(), dp(6f),
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = if (onTarget) InstrumentsActivity.ACCENT else Color.WHITE })
+        }
         canvas.restore()
 
         // Centre readout (doesn't rotate).
@@ -306,8 +384,22 @@ class CompassView(context: Context) : View(context) {
         canvas.drawText("$deg°", cx, cy + dp(6f), textPaint(Color.WHITE, sp(56f), bold = true))
         canvas.drawText(direction(deg), cx, cy + dp(40f), textPaint(GREY, sp(16f), mono = true))
 
-        val hint = if (lowAccuracy) "Move the phone in a figure-8 to calibrate" else "Hold flat, or upright to aim the camera"
-        canvas.drawText(hint, cx, cy + r + dp(70f), textPaint(if (lowAccuracy) InstrumentsActivity.ACCENT else GREY, sp(13f)))
+        if (target >= 0f) {
+            val t = toTarget()
+            val line = when {
+                onTarget -> "ON TARGET ${target.roundToInt()}°"
+                t > 0 -> "TARGET ${target.roundToInt()}° · ${abs(t).roundToInt()}° RIGHT"
+                else -> "TARGET ${target.roundToInt()}° · ${abs(t).roundToInt()}° LEFT"
+            }
+            canvas.drawText(line, cx, cy + r + dp(48f),
+                textPaint(if (onTarget) InstrumentsActivity.ACCENT else Color.WHITE, sp(13f), mono = true))
+        }
+        val hint = when {
+            lowAccuracy -> "Move the phone in a figure-8 to calibrate"
+            target >= 0f -> "Tap to clear the target"
+            else -> "Tap to lock this bearing as a target"
+        }
+        canvas.drawText(hint, cx, cy + r + dp(74f), textPaint(if (lowAccuracy) InstrumentsActivity.ACCENT else GREY, sp(13f)))
     }
 
     private fun direction(deg: Int): String {
@@ -326,7 +418,41 @@ class LevelView(context: Context) : View(context) {
     private var gy = 0f
     private var gz = 9.81f
     private var started = false
-    private var wasLevel = false
+    private var isLevel = false
+    private var lastStep = Int.MIN_VALUE
+    private var lastFlat: Boolean? = null
+    private val haptics = Haptics(context)
+    private val prefs = Store.prefs(context)
+
+    // Zero points, set with a long-press (for a surface that isn't quite flat, or a case).
+    private var zx = prefs.getFloat("level_zx", 0f)
+    private var zy = prefs.getFloat("level_zy", 0f)
+    private var zEdge = prefs.getFloat("level_ze", 0f)
+
+    // Latest readings, worked out on each sensor update.
+    private var flat = true
+    private var ax = 0f
+    private var ay = 0f
+    private var edgeOff = 0f
+    private val tilt get() = if (flat) hypot(ax, ay) else abs(edgeOff)
+    private val calibrated get() = zx != 0f || zy != 0f || zEdge != 0f
+
+    init {
+        isHapticFeedbackEnabled = false
+        isLongClickable = true
+        setOnLongClickListener {
+            if (calibrated) {
+                zx = 0f; zy = 0f; zEdge = 0f
+                haptics.clear()
+            } else {
+                if (flat) { zx += ax; zy += ay } else zEdge += edgeOff
+                haptics.set()
+            }
+            prefs.edit().putFloat("level_zx", zx).putFloat("level_zy", zy).putFloat("level_ze", zEdge).apply()
+            measure(); invalidate()
+            true
+        }
+    }
 
     fun onGravity(x: Float, y: Float, z: Float) {
         if (!started) { gx = x; gy = y; gz = z; started = true }
@@ -334,23 +460,54 @@ class LevelView(context: Context) : View(context) {
         gx += (x - gx) * k
         gy += (y - gy) * k
         gz += (z - gz) * k
+        measure()
+        feel()
         invalidate()
+    }
+
+    private fun measure() {
+        val g = sqrt(gx * gx + gy * gy + gz * gz).coerceAtLeast(0.1f)
+        flat = abs(gz) / g > 0.8f
+        ax = Math.toDegrees(atan2(gx.toDouble(), gz.toDouble())).toFloat() - zx
+        ay = Math.toDegrees(atan2(gy.toDouble(), gz.toDouble())).toFloat() - zy
+        val a = Math.toDegrees(atan2(gx.toDouble(), gy.toDouble())).toFloat()
+        edgeOff = a - (a / 90f).roundToInt() * 90f - zEdge
+    }
+
+    /**
+     * Haptics: a faint notch for every degree inside 10°, pulses that speed up and
+     * strengthen as you close in on level, a swell-and-click when it locks level and a soft
+     * fall when it slips off. Switching between surface and edge gives a thud.
+     */
+    private fun feel() {
+        if (lastFlat != null && lastFlat != flat) haptics.tick(0.8f)
+        lastFlat = flat
+        val t = tilt
+        val levelNow = if (isLevel) t < 0.7f else t < 0.4f   // hysteresis, so it doesn't chatter
+        if (levelNow && !isLevel) haptics.lock()
+        if (!levelNow && isLevel) haptics.release()
+        isLevel = levelNow
+        if (levelNow) { lastStep = 0; return }
+        if (t < 3f) {
+            haptics.proximity(1f - t / 3f)
+        } else if (t < 10f) {
+            val step = t.toInt()
+            if (lastStep != Int.MIN_VALUE && step != lastStep) haptics.detent(0.3f)
+            lastStep = step
+            return
+        }
+        lastStep = t.toInt()
     }
 
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height * 0.46f
-        val g = sqrt(gx * gx + gy * gy + gz * gz).coerceAtLeast(0.1f)
-        val flat = abs(gz) / g > 0.8f
         canvas.drawText(if (flat) "LEVEL · SURFACE" else "LEVEL · EDGE", cx, dp(64f), textPaint(GREY, sp(12f), mono = true))
+        val level = isLevel
 
-        val level: Boolean
         if (flat) {
             // Bullseye: the bubble drifts towards the raised side, like a real one.
-            val ax = Math.toDegrees(atan2(gx.toDouble(), gz.toDouble())).toFloat()
-            val ay = Math.toDegrees(atan2(gy.toDouble(), gz.toDouble())).toFloat()
             val tilt = hypot(ax, ay)
-            level = tilt < 0.5f
             val r = min(width, height) * 0.38f
             val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2f); color = TRACK }
             canvas.drawCircle(cx, cy, r, ring)
@@ -377,9 +534,7 @@ class LevelView(context: Context) : View(context) {
             )
         } else {
             // Edge: angle from the nearest horizontal or vertical, shown as a tube level.
-            val a = Math.toDegrees(atan2(gx.toDouble(), gy.toDouble())).toFloat()
-            val off = a - (a / 90f).roundToInt() * 90f
-            level = abs(off) < 0.5f
+            val off = edgeOff
             val w = width * 0.8f
             val h = dp(56f)
             val tube = RectF(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
@@ -400,11 +555,11 @@ class LevelView(context: Context) : View(context) {
             canvas.drawText("Rest the phone's edge on the surface", cx, cy + h + dp(48f), textPaint(GREY, sp(13f)))
         }
 
+        val hint = if (calibrated) "Custom zero set · long-press to reset" else "Long-press to set this angle as zero"
+        canvas.drawText(hint, cx, height - dp(52f), textPaint(GREY, sp(12f)))
         if (level) {
             canvas.drawText("LEVEL", cx, height - dp(24f), textPaint(InstrumentsActivity.ACCENT, sp(14f), mono = true))
-            if (!wasLevel) performHapticFeedback(HapticFeedbackConstants.CONFIRM)
         }
-        wasLevel = level
     }
 }
 
