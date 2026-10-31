@@ -12,13 +12,40 @@ object Store {
     const val PAGE_DATA = 3
     const val PAGE_FOCUS = 4
     const val PAGE_INSTRUMENTS = 5
-    const val PAGE_COUNT = 6
+    const val PAGE_COMPASS = 6
+    const val PAGE_COUNT = 7
 
     fun prefs(c: Context): SharedPreferences = c.getSharedPreferences("glass_ring", Context.MODE_PRIVATE)
 
-    fun page(c: Context) = prefs(c).getInt("page", PAGE_TIME)
-    fun setPage(c: Context, page: Int) =
-        prefs(c).edit().putInt("page", ((page % PAGE_COUNT) + PAGE_COUNT) % PAGE_COUNT).apply()
+    val PAGE_NAMES = arrayOf("Today", "Steps", "Battery", "Data", "Focus", "Instruments", "Compass")
+
+    /** Pages shown on the all-in-one widget, in order. Set in the app's Setup tab. */
+    fun pageOrder(c: Context): List<Int> {
+        val saved = prefs(c).getString("page_order", null)
+            ?: return (0 until PAGE_COUNT).toList()
+        val list = saved.split(',').mapNotNull { it.toIntOrNull() }.filter { it in 0 until PAGE_COUNT }.distinct()
+        return list.ifEmpty { listOf(PAGE_TIME) }
+    }
+
+    fun setPageOrder(c: Context, order: List<Int>) {
+        prefs(c).edit().putString("page_order", order.joinToString(",")).apply()
+    }
+
+    /** The page on show, always one of the enabled pages. */
+    fun page(c: Context): Int {
+        val p = prefs(c).getInt("page", PAGE_TIME)
+        val order = pageOrder(c)
+        return if (p in order) p else order.first()
+    }
+
+    fun setPage(c: Context, page: Int) = prefs(c).edit().putInt("page", page).apply()
+
+    /** Next or previous enabled page, wrapping round. */
+    fun stepPage(c: Context, delta: Int): Int {
+        val order = pageOrder(c)
+        val i = order.indexOf(page(c)).coerceAtLeast(0)
+        return order[((i + delta) % order.size + order.size) % order.size]
+    }
 
     /** 0 = day, 1 = week, 2 = month, 3 = year. */
     fun timeMode(c: Context) = prefs(c).getInt("time_mode", 0)

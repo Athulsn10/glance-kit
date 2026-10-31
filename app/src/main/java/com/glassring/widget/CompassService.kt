@@ -71,7 +71,7 @@ class CompassService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP || ids(this).isEmpty()) {
+        if (intent?.action == ACTION_STOP || !hasHost(this)) {
             setLive(this, false)
             Singles.updateCompass(this)
             stopSelf()
@@ -166,13 +166,20 @@ class CompassService : Service(), SensorEventListener {
         fun ids(c: Context): IntArray =
             AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, CompassWidget::class.java))
 
+        /** All-in-one widgets showing the compass page. */
+        fun mainIds(c: Context): IntArray =
+            if (Store.PAGE_COMPASS in Store.pageOrder(c)) widgetIds(c) else IntArray(0)
+
+        /** Somewhere to show the live compass: the Compass widget or the all-in-one's compass page. */
+        fun hasHost(c: Context) = ids(c).isNotEmpty() || mainIds(c).isNotEmpty()
+
         fun isLive(c: Context) = Store.prefs(c).getBoolean(K_LIVE, false)
         private fun setLive(c: Context, on: Boolean) = Store.prefs(c).edit().putBoolean(K_LIVE, on).apply()
         fun lastHeading(c: Context) = Store.prefs(c).getFloat(K_HEADING, 0f)
 
         /** Start from something the user did (a widget tap or the app being open). */
         fun start(c: Context) {
-            if (ids(c).isEmpty()) return
+            if (!hasHost(c)) return
             runCatching { c.startForegroundService(Intent(c, CompassService::class.java)) }
         }
 
@@ -180,6 +187,11 @@ class CompassService : Service(), SensorEventListener {
         fun enable(c: Context) {
             setLive(c, true)
             start(c)
+        }
+
+        /** Stop the service but keep live mode on, so it resumes when a compass is back on the home screen. */
+        fun halt(c: Context) {
+            c.stopService(Intent(c, CompassService::class.java))
         }
 
         fun stop(c: Context) {
@@ -204,15 +216,20 @@ class CompassService : Service(), SensorEventListener {
 
         /** Tiny update: only the dial angle and the text change. */
         private fun push(c: Context, heading: Float) {
-            val ids = ids(c)
-            if (ids.isEmpty()) return
             Store.prefs(c).edit().putFloat(K_HEADING, heading).apply()
-            val rv = RemoteViews(c.packageName, R.layout.compass_widget)
             val deg = heading.roundToInt() % 360
-            rv.setInt(R.id.dial, "setImageLevel", level(heading))
-            rv.setTextViewText(R.id.heading, "$deg°")
-            rv.setTextViewText(R.id.direction, direction(deg))
-            AppWidgetManager.getInstance(c).partiallyUpdateAppWidget(ids, rv)
+            val mgr = AppWidgetManager.getInstance(c)
+            fun send(ids: IntArray, layout: Int) {
+                if (ids.isEmpty()) return
+                val rv = RemoteViews(c.packageName, layout)
+                rv.setInt(R.id.dial, "setImageLevel", level(heading))
+                rv.setTextViewText(R.id.heading, "$deg°")
+                rv.setTextViewText(R.id.direction, direction(deg))
+                mgr.partiallyUpdateAppWidget(ids, rv)
+            }
+            send(ids(c), R.layout.compass_widget)
+            // Same tiny update for the all-in-one's compass page (it's in the widget even when not on show).
+            send(mainIds(c), R.layout.widget_root)
         }
 
         /** The dial turns the opposite way to the phone, so north stays north. */

@@ -915,12 +915,13 @@ class MainActivity : Activity(), SensorEventListener {
                 addView(row)
             }
         }, 4)
+        add(col, pagesCard(), 12)
         add(col, Ui.card(this, "LIVE COMPASS WIDGET").apply {
             val live = CompassService.isLive(context)
-            val placed = CompassService.ids(context).isNotEmpty()
+            val placed = CompassService.hasHost(context)
             addView(Ui.text(context, when {
                 live && placed -> "Live compass is on."
-                live -> "Live compass is on. Add the Compass widget to see it."
+                live -> "Live compass is on. Add the Compass widget, or the Compass page on the all-in-one widget, to see it."
                 else -> "Live compass is off."
             }, 15f, if (live) Config.ACCENT else Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
@@ -981,6 +982,58 @@ class MainActivity : Activity(), SensorEventListener {
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context, "Everything is read on your phone. No accounts, no tracking, nothing leaves the device.", 13f, Ui.FAINT))
         })
+    }
+
+    /** Choose, order and hide the all-in-one widget's pages. */
+    private fun pagesCard(): LinearLayout = Ui.card(this, "ALL-IN-ONE WIDGET PAGES").apply {
+        val order = Store.pageOrder(context).toMutableList()
+        val hidden = (0 until Store.PAGE_COUNT).filter { it !in order }
+        addView(Ui.text(context, "Turn pages on or off and move them up or down. The widget updates straight away.", 13f, Ui.SOFT))
+        addView(Ui.spacer(context, 6))
+        fun save(newOrder: List<Int>) {
+            focusHaptics.tick(0.5f)
+            Store.setPageOrder(applicationContext, newOrder)
+            io.execute {
+                runCatching {
+                    refreshAll(applicationContext)
+                    if (CompassService.isLive(applicationContext) && !CompassService.hasHost(applicationContext)) {
+                        CompassService.halt(applicationContext)
+                    }
+                }
+            }
+            adapter.notifyItemChanged(TAB_SETUP)
+        }
+        fun iconBtn(label: String, enabled: Boolean, onClick: () -> Unit) =
+            Ui.text(context, label, 16f, if (enabled) Ui.WHITE else 0xFF3A3A3A.toInt(), medium = true, gravity = Gravity.CENTER).apply {
+                background = Ui.rounded(0xFF1C1C1C.toInt(), Ui.dp(context, 18).toFloat())
+                if (enabled) setOnClickListener { onClick() }
+            }
+        val rows = order.map { it to true } + hidden.map { it to false }
+        rows.forEach { (page, on) ->
+            val i = order.indexOf(page)
+            val row = Ui.hstack(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, Ui.dp(context, 10), 0, 0) }
+            row.addView(Ui.text(context, if (on) "${i + 1}" else "–", 12f, Ui.FAINT, mono = true), LinearLayout.LayoutParams(Ui.dp(context, 22), ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(Ui.text(context, Store.PAGE_NAMES[page], 16f, if (on) Ui.WHITE else Ui.FAINT, medium = true),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            if (on) {
+                row.addView(iconBtn("↑", i > 0) {
+                    save(order.toMutableList().apply { add(i - 1, removeAt(i)) })
+                }, LinearLayout.LayoutParams(Ui.dp(context, 40), Ui.dp(context, 40)).apply { marginEnd = Ui.dp(context, 6) })
+                row.addView(iconBtn("↓", i < order.size - 1) {
+                    save(order.toMutableList().apply { add(i + 1, removeAt(i)) })
+                }, LinearLayout.LayoutParams(Ui.dp(context, 40), Ui.dp(context, 40)).apply { marginEnd = Ui.dp(context, 8) })
+            }
+            val canHide = !on || order.size > 1 // keep at least one page
+            row.addView(Ui.pill(context, if (on) "Remove" else "Add", !on) {
+                if (on) { if (canHide) save(order - page) } else save(order + page)
+            }.apply { alpha = if (canHide) 1f else 0.4f }, LinearLayout.LayoutParams(Ui.dp(context, 88), Ui.dp(context, 40)))
+            addView(row)
+        }
+        addView(Ui.spacer(context, 12))
+        addView(Ui.text(context,
+            "The Compass page shows your last heading and moves live while the live compass is on, " +
+                "using the same sensor feed as the Compass widget, so it adds no extra battery use.",
+            12f, Ui.FAINT))
     }
 
     private fun pin(cls: Class<*>) {

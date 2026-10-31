@@ -33,11 +33,11 @@ private const val RING_DP = 76f
 private const val CHART_W_DP = 320f
 private const val CHART_H_DP = 44f
 
-private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5)
+private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5, R.id.dot6)
 private val AXIS4 = intArrayOf(R.id.a40, R.id.a41, R.id.a42, R.id.a43, R.id.a44)
 private val AXIS7 = intArrayOf(R.id.a70, R.id.a71, R.id.a72, R.id.a73, R.id.a74, R.id.a75, R.id.a76)
 
-private fun widgetIds(c: Context): IntArray =
+internal fun widgetIds(c: Context): IntArray =
     AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, RingWidgetReceiver::class.java))
 
 /** One lock for every widget update, so a background refresh can't undo a page switch. */
@@ -79,8 +79,8 @@ fun showPage(c: Context, page: Int) = synchronized(updateLock) {
     if (ids.isEmpty()) return@synchronized
     val p = Store.page(c)
     val rv = RemoteViews(c.packageName, R.layout.widget_root)
-    rv.setDisplayedChild(R.id.flipper, p)
-    Views.header(rv, p, Views.titleFor(c, p))
+    rv.setDisplayedChild(R.id.flipper, Store.pageOrder(c).indexOf(p).coerceAtLeast(0))
+    Views.header(c, rv, p, Views.titleFor(c, p))
     AppWidgetManager.getInstance(c).partiallyUpdateAppWidget(ids, rv)
 }
 
@@ -89,6 +89,7 @@ class RingWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         inBackground { refreshAll(context) }
         RefreshWorker.schedule(context)
+        if (CompassService.isLive(context)) CompassService.start(context)
     }
 
     override fun onEnabled(context: Context) {
@@ -96,7 +97,10 @@ class RingWidgetReceiver : AppWidgetProvider() {
     }
 
     /** Last widget removed: stop all background refreshes. */
-    override fun onDisabled(context: Context) = stopIfNoWidgets(context)
+    override fun onDisabled(context: Context) {
+        if (!CompassService.hasHost(context)) CompassService.halt(context)
+        stopIfNoWidgets(context)
+    }
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
@@ -107,9 +111,13 @@ class RingWidgetReceiver : AppWidgetProvider() {
 
     private fun handle(context: Context, intent: Intent, action: String) = synchronized(updateLock) {
         when (action) {
-            ACTION_NEXT -> showPage(context, Store.page(context) + 1)
-            ACTION_PREV -> showPage(context, Store.page(context) - 1)
-            ACTION_GOTO -> showPage(context, intent.getIntExtra(EXTRA_PAGE, 0))
+            ACTION_NEXT -> showPage(context, Store.stepPage(context, 1))
+            ACTION_PREV -> showPage(context, Store.stepPage(context, -1))
+            ACTION_GOTO -> {
+                // Dots are positions in the chosen order.
+                val order = Store.pageOrder(context)
+                showPage(context, order.getOrElse(intent.getIntExtra(EXTRA_PAGE, 0)) { order.first() })
+            }
             ACTION_RING -> {
                 // The page comes with the tap, so separate widgets act on their own page.
                 when (intent.getIntExtra(EXTRA_PAGE, Store.page(context))) {
@@ -151,16 +159,16 @@ object Views {
     fun root(c: Context, s: Snapshot): RemoteViews {
         val rv = RemoteViews(c.packageName, R.layout.widget_root)
         rv.removeAllViews(R.id.flipper)
-        // Order must match the Store.PAGE_* numbers.
-        rv.addView(R.id.flipper, timePage(c, s))
-        rv.addView(R.id.flipper, stepsPage(c, s))
-        rv.addView(R.id.flipper, batteryPage(c, s))
-        rv.addView(R.id.flipper, dataPage(c, s))
-        rv.addView(R.id.flipper, focusPage(c, s))
-        rv.addView(R.id.flipper, instrumentsPage(c, s))
+        // Only the pages you picked, in your order (Setup tab in the app).
+        val order = Store.pageOrder(c)
+        for (p in order) rv.addView(R.id.flipper, if (p == Store.PAGE_COMPASS) compassPage(c) else page(c, s, p))
         val page = Store.page(c)
-        rv.setDisplayedChild(R.id.flipper, page)
-        header(rv, page, titleFor(s, page))
+        rv.setDisplayedChild(R.id.flipper, order.indexOf(page).coerceAtLeast(0))
+        header(c, rv, page, titleFor(s, page))
+        // With one page there's nothing to flip to.
+        val nav = if (order.size > 1) android.view.View.VISIBLE else android.view.View.GONE
+        rv.setViewVisibility(R.id.prev, nav)
+        rv.setViewVisibility(R.id.next, nav)
         rv.setOnClickPendingIntent(R.id.prev, broadcast(c, ACTION_PREV, 1))
         rv.setOnClickPendingIntent(R.id.next, broadcast(c, ACTION_NEXT, 2))
         for (i in DOTS.indices) {
@@ -179,14 +187,29 @@ object Views {
         else -> timePage(c, s)
     }
 
-    fun header(rv: RemoteViews, page: Int, title: String) {
+    fun header(c: Context, rv: RemoteViews, page: Int, title: String) {
         rv.setTextViewText(R.id.title, title)
+        val order = Store.pageOrder(c)
+        val at = order.indexOf(page)
         for (i in DOTS.indices) {
-            rv.setImageViewResource(DOTS[i], if (i == page) R.drawable.dot_on else R.drawable.dot_off)
+            rv.setViewVisibility(DOTS[i], if (i < order.size && order.size > 1) android.view.View.VISIBLE else android.view.View.GONE)
+            rv.setImageViewResource(DOTS[i], if (i == at) R.drawable.dot_on else R.drawable.dot_off)
         }
     }
 
+    /** Compass page: shows the last heading, and turns live with the live compass (no extra work). */
+    fun compassPage(c: Context): RemoteViews {
+        val live = CompassService.isLive(c)
+        val rv = RemoteViews(c.packageName, R.layout.page_compass)
+        CompassService.bind(c, rv, CompassService.lastHeading(c), live)
+        rv.setTextViewText(R.id.status, if (live) "LIVE · TAP FOR FULL COMPASS" else "TAP TO GO LIVE")
+        rv.setOnClickPendingIntent(R.id.compass_page,
+            if (live) openInstrument(c, "compass", 131) else CompassService.startIntent(c))
+        return rv
+    }
+
     fun titleFor(s: Snapshot, page: Int): String = when (page) {
+        Store.PAGE_COMPASS -> "COMPASS"
         Store.PAGE_INSTRUMENTS -> INSTRUMENTS_TITLE
         Store.PAGE_STEPS -> if (s.stepsWeek) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
         Store.PAGE_BATTERY -> batteryTitle(s.battery)
@@ -197,6 +220,7 @@ object Views {
 
     /** Cheap version for page switches: reads only what the title needs. */
     fun titleFor(c: Context, page: Int): String = when (page) {
+        Store.PAGE_COMPASS -> "COMPASS"
         Store.PAGE_INSTRUMENTS -> INSTRUMENTS_TITLE
         Store.PAGE_STEPS -> if (Store.stepsWeek(c)) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
         Store.PAGE_BATTERY -> batteryTitle(Collect.battery(c))

@@ -1,21 +1,12 @@
-## Glance Kit 1.7
+## Glance Kit 1.8
 
 **Install:** download **GlanceKit.apk** below on your phone and tap it. It installs over earlier 1.1+ versions.
 
 ### What's new
-- **A new focus timer.** The ring now burns down with a glowing tip that throws off embers, breathes softly while you wait, and ends with confetti and a celebration buzz. The time always fits inside the ring.
-  - Pick **15, 25, 45 or 60 minutes**. The widgets use the same length.
-  - Today's sessions show as dots towards a goal of 4.
-  - Encouraging cues as you go: settling in, deep focus, halfway, final stretch.
-  - Haptics: a click at halfway, a tick for each of the last 10 seconds, and a celebration at the end.
-  - **Full screen:** tap the ring for a distraction-free view that keeps the screen on.
-  - A short "How it works" card explains it.
-- **Live compass "Turn on" works without the widget.** It turns on straight away and offers to add the Compass widget. The compass goes live as soon as the widget is on your home screen.
-- **Clearer permissions.** Each permission shows ON or OFF. The button says "Allow…" when it's off and "Turn off…" when it's on. Notifications and All files access are now listed too.
-- **Honest cache card.** It explains that Android only lets the system clear apps' own cache. Tap an app to clear its cache, or use the computer command shown. The button now says what it really clears: shared-storage cache.
+- **Choose and order the all-in-one widget's pages.** In the app, go to Setup > All-in-one widget pages. Move pages up or down, remove the ones you don't want, and add them back any time. The widget updates straight away. The dots and arrows follow your order, and the arrows hide if only one page is left.
+- **Compass page on the all-in-one widget.** It shows your last heading. While the live compass is on, its dial turns live, using the same sensor feed as the Compass widget, so it adds no extra battery use. Tap it to go live, or, when it's live, to open the full compass.
+- The live compass now counts the all-in-one's Compass page as a place to show it, so the Compass widget is no longer required.
 
-### Permissions
-- **Physical activity** for steps (asked once).
-- **Usage access** is optional, for full-day data, most-used apps, app storage and cache.
-- **Notifications** for the live compass's "on" notification.
-- **All files access** is optional and only used by the shared-storage cache button.
+### Also in 1.7
+- A new immersive focus timer with 15/25/45/60-minute presets, a full-screen mode and haptics.
+- Clearer permission buttons, a working live compass "Turn on", and a more honest cache card.

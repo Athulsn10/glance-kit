@@ -60,6 +60,16 @@ object Singles {
     fun updateCompass(c: Context) {
         val ids = ids(c, Kind.COMPASS)
         if (ids.isNotEmpty()) AppWidgetManager.getInstance(c).updateAppWidget(ids, compassViews(c))
+        // The all-in-one's compass page: new status and tap action.
+        val main = CompassService.mainIds(c)
+        if (main.isNotEmpty()) {
+            val live = CompassService.isLive(c)
+            val rv = RemoteViews(c.packageName, R.layout.widget_root)
+            rv.setTextViewText(R.id.status, if (live) "LIVE · TAP FOR FULL COMPASS" else "TAP TO GO LIVE")
+            rv.setOnClickPendingIntent(R.id.compass_page,
+                if (live) Views.openInstrument(c, "compass", 131) else CompassService.startIntent(c))
+            AppWidgetManager.getInstance(c).partiallyUpdateAppWidget(main, rv)
+        }
     }
 
     private fun views(c: Context, s: Snapshot, k: Kind): RemoteViews {
