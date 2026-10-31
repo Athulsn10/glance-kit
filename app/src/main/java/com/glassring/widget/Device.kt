@@ -1,6 +1,9 @@
 package com.glassring.widget
 
 import android.app.ActivityManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.graphics.drawable.Drawable
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Context
@@ -76,6 +79,71 @@ object Device {
             else -> Duration.ZERO
         }
         return Sky(rise, set, length, left, set?.minusMinutes(40))
+    }
+
+    data class SunNow(val elevationDeg: Double, val solarNoon: LocalTime?, val up: Boolean)
+
+    /** Where the sun is right now (NOAA equations), and when it's highest today. */
+    fun sunNow(): SunNow {
+        val zone = ZoneId.systemDefault()
+        val now = java.time.ZonedDateTime.now(zone)
+        val date = now.toLocalDate()
+        val gamma = 2 * PI / 365.0 * (date.dayOfYear - 1 + (now.hour - 12) / 24.0)
+        val eqTime = 229.18 * (0.000075 + 0.001868 * cos(gamma) - 0.032077 * kotlin.math.sin(gamma) -
+            0.014615 * cos(2 * gamma) - 0.040849 * kotlin.math.sin(2 * gamma))
+        val decl = 0.006918 - 0.399912 * cos(gamma) + 0.070257 * kotlin.math.sin(gamma) -
+            0.006758 * cos(2 * gamma) + 0.000907 * kotlin.math.sin(2 * gamma) -
+            0.002697 * cos(3 * gamma) + 0.00148 * kotlin.math.sin(3 * gamma)
+        val offsetMin = now.offset.totalSeconds / 60.0
+        val minutes = now.hour * 60 + now.minute + now.second / 60.0
+        val trueSolar = minutes + eqTime + 4 * Config.LONGITUDE - offsetMin
+        val ha = Math.toRadians(trueSolar / 4 - 180)
+        val lat = Math.toRadians(Config.LATITUDE)
+        val cosZen = kotlin.math.sin(lat) * kotlin.math.sin(decl) + cos(lat) * cos(decl) * cos(ha)
+        val elev = 90 - Math.toDegrees(kotlin.math.acos(cosZen.coerceIn(-1.0, 1.0)))
+        val noonMin = 720 - 4 * Config.LONGITUDE - eqTime + offsetMin
+        val noon = runCatching { LocalTime.ofSecondOfDay(((noonMin * 60).toLong()).coerceIn(0, 86_399)) }.getOrNull()
+        return SunNow(elev, noon, elev > -0.833)
+    }
+
+    // ---------------- Most-used apps ----------------
+
+    data class AppUse(val label: String, val icon: Drawable?, val ms: Long)
+    data class AppUsage(val apps: List<AppUse>, val totalMs: Long, val unlocks: Int, val allowed: Boolean)
+
+    /** Screen time per app since midnight, most used first. Needs Usage access. */
+    fun topApps(c: Context, limit: Int = 8): AppUsage {
+        if (!Collect.hasUsageAccess(c)) return AppUsage(emptyList(), 0, 0, false)
+        val usm = c.getSystemService(UsageStatsManager::class.java) ?: return AppUsage(emptyList(), 0, 0, false)
+        val start = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val end = System.currentTimeMillis()
+        val pm = c.packageManager
+        val home = pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName
+        val skip = setOf(c.packageName, home, "com.android.systemui")
+        val stats = runCatching { usm.queryAndAggregateUsageStats(start, end) }.getOrNull() ?: emptyMap()
+        val used = stats.values
+            .filter { it.totalTimeInForeground >= 60_000 && it.packageName !in skip }
+            .sortedByDescending { it.totalTimeInForeground }
+        val total = used.sumOf { it.totalTimeInForeground }
+        val apps = used.take(limit).map { u ->
+            val info = runCatching { pm.getApplicationInfo(u.packageName, 0) }.getOrNull()
+            AppUse(
+                info?.let { pm.getApplicationLabel(it).toString() } ?: u.packageName.substringAfterLast('.'),
+                info?.let { runCatching { pm.getApplicationIcon(it) }.getOrNull() },
+                u.totalTimeInForeground,
+            )
+        }
+        // Unlocks today: each time the lock screen is dismissed.
+        var unlocks = 0
+        runCatching {
+            val ev = usm.queryEvents(start, end)
+            val e = UsageEvents.Event()
+            while (ev.hasNextEvent()) {
+                ev.getNextEvent(e)
+                if (e.eventType == UsageEvents.Event.KEYGUARD_HIDDEN) unlocks++
+            }
+        }
+        return AppUsage(apps, total, unlocks, true)
     }
 
     /** Next alarm set in the Clock app, if any. */

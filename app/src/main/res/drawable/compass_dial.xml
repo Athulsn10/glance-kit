@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The live compass widget turns this dial by setting the image level (0-10000 = 0-360 degrees). -->
+<rotate xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/compass_dial_v"
+    android:fromDegrees="0"
+    android:pivotX="50%"
+    android:pivotY="50%"
+    android:toDegrees="360" />

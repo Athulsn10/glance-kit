@@ -19,5 +19,5 @@
     <string name="w_pressure">Pressure</string>
     <string name="wd_pressure">Air pressure and its trend.</string>
     <string name="w_compass">Compass</string>
-    <string name="wd_compass">Tap to open the live compass and level.</string>
+    <string name="wd_compass">A live compass on your home screen. Tap once to turn it on.</string>
 </resources>

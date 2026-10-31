@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Widget picker preview: makes each widget easy to tell apart. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="14dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="monospace"
+        android:letterSpacing="0.12"
+        android:text="STEPS"
+        android:textColor="#FF8A8A8A"
+        android:textSize="10sp" />
+
+    <ImageView
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_marginTop="10dp"
+        android:src="@drawable/ic_w_steps" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:fontFamily="sans-serif-medium"
+        android:maxLines="1"
+        android:text="5,240 steps"
+        android:textColor="#FFFFFFFF"
+        android:textSize="13sp" />
+</LinearLayout>

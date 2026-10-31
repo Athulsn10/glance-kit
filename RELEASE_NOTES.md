@@ -1,20 +1,14 @@
-## Glance Kit 1.4
+## Glance Kit 1.5
 
 **Install:** download **GlanceKit.apk** below on your phone and tap it. It installs over earlier 1.1+ versions.
 
 ### What's new
-- **New app:** a swipeable dashboard with a tab for each widget page (Today, Steps, Battery, Data, Focus, Instruments), plus Phone and Setup. Every tab has a large ring, more metrics and full-size charts.
-- **Separate widgets:** add Today, Steps, Battery, Data, Focus, Pressure or Compass on their own. They're compact at 2×2 and show the full page with its chart when you stretch them. The all-in-one widget is still there.
-- **Compass on the widget:** the Instruments page now has Compass and Level buttons, and there's a Compass widget.
-- **More metrics:**
-  - **Today:** moon phase, golden hour, day length, next alarm, and day/week/month/year rings.
-  - **Steps:** 30-day chart, calories, active hours, best hour.
-  - **Battery:** voltage, power source, average drain, estimated full charge.
-  - **Data:** network type, connection status, metered or not, estimated speed.
-  - **Phone:** storage, RAM, time since restart, security patch age, modes.
-- **Pressure** is now shown in millibars (mbar).
-- **Fixes:** counters can no longer be counted twice, tabs keep their scroll position, and tapping a widget no longer restarts the app.
+- **Live compass widget:** add the Compass widget and tap it once. Its dial turns as you turn the phone, without opening the app. It runs only while the screen is on and shows a quiet notification; turn it off from the notification or in Setup.
+- **Sun and Moon cards** on the Today tab: tonight's real moon phase as a textured picture, with % lit, moon age and days to new and full moon. A sun card shows whether the sun is up, its height in the sky, when it's highest and the golden hour. The Sky card keeps sunrise, sunset, day length, golden hour and daylight left.
+- **Most used today** on the Phone tab: your top apps by screen time, with icons and bars, plus total screen time and unlocks. Updates every minute while the tab is open (needs usage access).
+- **Easy-to-spot widgets:** each widget has its own icon and preview in the widget picker, and a small icon in its title on the home screen.
 
 ### Permissions
 - **Physical activity** for steps (asked once).
-- **Usage access** is optional, for full-day data totals.
+- **Usage access** is optional, for full-day data and the most-used apps card.
+- **Notifications** let the live compass show its "on" notification (asked when you turn it on).

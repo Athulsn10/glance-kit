@@ -2,6 +2,8 @@
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/wd_focus"
     android:initialLayout="@layout/single_small"
+    android:previewLayout="@layout/preview_focus"
+    android:previewImage="@drawable/ic_w_focus"
     android:minWidth="110dp"
     android:minHeight="110dp"
     android:minResizeWidth="100dp"

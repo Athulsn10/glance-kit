@@ -11,6 +11,17 @@
     <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
     <!-- Network type and speed estimate on the Data tab (granted automatically). -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Live compass widget: a small foreground service while the screen is on. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the Phone tab show names and icons of your most-used apps. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
     <!-- Short buzz when a focus session ends. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -55,6 +66,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/ring_widget_info" />
         </receiver>
+
+        <service
+            android:name=".CompassService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the home screen compass widget pointing north while the screen is on" />
+        </service>
 
         <!-- Separate widgets, one per item. -->
         <receiver

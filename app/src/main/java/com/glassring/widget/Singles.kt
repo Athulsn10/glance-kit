@@ -18,14 +18,14 @@ import java.util.Locale
 object Singles {
 
     /** Kind of single widget: which page it shows, its title and the app tab it opens. */
-    enum class Kind(val page: Int, val title: String, val tab: String, val cls: Class<out AppWidgetProvider>) {
-        TODAY(Store.PAGE_TIME, "TODAY", "Today", TodayWidget::class.java),
-        STEPS(Store.PAGE_STEPS, "STEPS", "Steps", StepsWidget::class.java),
-        BATTERY(Store.PAGE_BATTERY, "BATTERY", "Battery", BatteryWidget::class.java),
-        DATA(Store.PAGE_DATA, "DATA", "Data", DataWidget::class.java),
-        FOCUS(Store.PAGE_FOCUS, "FOCUS", "Focus", FocusWidget::class.java),
-        PRESSURE(Store.PAGE_INSTRUMENTS, "PRESSURE", "Instruments", PressureWidget::class.java),
-        COMPASS(-1, "COMPASS", "Instruments", CompassWidget::class.java),
+    enum class Kind(val page: Int, val title: String, val tab: String, val cls: Class<out AppWidgetProvider>, val icon: Int) {
+        TODAY(Store.PAGE_TIME, "TODAY", "Today", TodayWidget::class.java, R.drawable.ic_w_today),
+        STEPS(Store.PAGE_STEPS, "STEPS", "Steps", StepsWidget::class.java, R.drawable.ic_w_steps),
+        BATTERY(Store.PAGE_BATTERY, "BATTERY", "Battery", BatteryWidget::class.java, R.drawable.ic_w_battery),
+        DATA(Store.PAGE_DATA, "DATA", "Data", DataWidget::class.java, R.drawable.ic_w_data),
+        FOCUS(Store.PAGE_FOCUS, "FOCUS", "Focus", FocusWidget::class.java, R.drawable.ic_w_focus),
+        PRESSURE(Store.PAGE_INSTRUMENTS, "PRESSURE", "Instruments", PressureWidget::class.java, R.drawable.ic_w_pressure),
+        COMPASS(-1, "COMPASS", "Instruments", CompassWidget::class.java, R.drawable.ic_w_compass),
     }
 
     private const val SMALL_RING_DP = 92f
@@ -45,9 +45,26 @@ object Singles {
         }
     }
 
+    /** The live compass widget: a dial that turns, fed by CompassService while the screen is on. */
+    fun compassViews(c: Context): RemoteViews {
+        val live = CompassService.isLive(c)
+        val rv = RemoteViews(c.packageName, R.layout.compass_widget)
+        CompassService.bind(c, rv, CompassService.lastHeading(c), live)
+        rv.setOnClickPendingIntent(
+            R.id.single_root,
+            if (live) Views.openInstrument(c, "compass", 130) else CompassService.startIntent(c),
+        )
+        return rv
+    }
+
+    fun updateCompass(c: Context) {
+        val ids = ids(c, Kind.COMPASS)
+        if (ids.isNotEmpty()) AppWidgetManager.getInstance(c).updateAppWidget(ids, compassViews(c))
+    }
+
     private fun views(c: Context, s: Snapshot, k: Kind): RemoteViews {
+        if (k == Kind.COMPASS) return compassViews(c)
         val small = small(c, s, k)
-        if (k == Kind.COMPASS) return small
         val wide = RemoteViews(c.packageName, R.layout.single_wide)
         wide.setTextViewText(R.id.title, Views.titleFor(s, k.page))
         wide.removeAllViews(R.id.single_content)
@@ -66,6 +83,7 @@ object Singles {
     private fun small(c: Context, s: Snapshot, k: Kind): RemoteViews {
         val rv = RemoteViews(c.packageName, R.layout.single_small)
         rv.setTextViewText(R.id.title, k.title)
+        rv.setImageViewResource(R.id.title_icon, k.icon)
         rv.setViewVisibility(R.id.chrono, View.GONE)
         rv.setViewVisibility(R.id.ring_value, View.VISIBLE)
         val white = RingRenderer.WHITE
@@ -153,14 +171,7 @@ object Singles {
                 rv.setTextViewText(R.id.ring_caption, "MBAR")
                 rv.setTextViewText(R.id.sub, if (hpa != null) b.trend else "Measuring…")
             }
-            Kind.COMPASS -> {
-                rv.setImageViewBitmap(R.id.ring, RingRenderer.compassRose(c, SMALL_RING_DP))
-                rv.setTextViewText(R.id.ring_value, "")
-                rv.setViewVisibility(R.id.ring_value, View.GONE)
-                rv.setTextViewText(R.id.ring_caption, "")
-                rv.setTextViewText(R.id.sub, "Tap for live compass")
-                open = Views.openInstrument(c, "compass", 130)
-            }
+            Kind.COMPASS -> Unit // has its own layout, see compassViews()
         }
         rv.setOnClickPendingIntent(R.id.single_root, open)
         return rv
@@ -186,7 +197,7 @@ fun stopIfNoWidgets(c: Context) {
 }
 
 /** Shared behaviour for every separate widget. */
-abstract class SingleWidget : AppWidgetProvider() {
+open class SingleWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         inBackground { refreshAll(context) }
         RefreshWorker.schedule(context)
@@ -208,4 +219,9 @@ class BatteryWidget : SingleWidget()
 class DataWidget : SingleWidget()
 class FocusWidget : SingleWidget()
 class PressureWidget : SingleWidget()
-class CompassWidget : SingleWidget()
+class CompassWidget : SingleWidget() {
+    override fun onDisabled(context: Context) {
+        CompassService.stop(context)
+        super.onDisabled(context)
+    }
+}

@@ -53,6 +53,13 @@ class MainActivity : Activity(), SensorEventListener {
     private val io = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     private var snap: Snapshot? = null
+    private var apps: Device.AppUsage? = null
+    private val phoneTick = object : Runnable {
+        override fun run() {
+            if (resumed && pager.currentItem == TAB_PHONE) reload()
+            main.postDelayed(this, 60_000)
+        }
+    }
     private var resumed = false
 
     private lateinit var sm: SensorManager
@@ -141,10 +148,15 @@ class MainActivity : Activity(), SensorEventListener {
         resumed = true
         reload()
         updateSensors()
+        main.removeCallbacks(phoneTick)
+        main.postDelayed(phoneTick, 60_000)
+        // Keep the live compass widget running (the app being open lets it start).
+        if (CompassService.isLive(this)) CompassService.start(this)
     }
 
     override fun onPause() {
         super.onPause()
+        main.removeCallbacks(phoneTick)
         resumed = false
         updateSensors()
     }
@@ -154,10 +166,12 @@ class MainActivity : Activity(), SensorEventListener {
         if (isDestroyed || io.isShutdown) return
         io.execute {
             val s = runCatching { Collect.snapshot(applicationContext) }.getOrNull()
+            val a = runCatching { Device.topApps(applicationContext) }.getOrNull()
             if (alsoWidgets) runCatching { refreshAll(applicationContext) }
             main.post {
                 if (isDestroyed) return@post
                 if (s != null) snap = s
+                if (a != null) apps = a
                 adapter.notifyDataSetChanged()
             }
         }
@@ -321,19 +335,54 @@ class MainActivity : Activity(), SensorEventListener {
             listOf("12 AM", "6 AM", "12 PM", "6 PM", ""), spread = false,
         ))
 
-        val moon = Device.moon()
         add(col, Ui.card(this, "SKY").apply {
             addView(Ui.statGrid(context, listOf(
                 (sky.sunrise?.let { Collect.fmtClock(it) } ?: "–") to "SUNRISE",
                 (sky.sunset?.let { Collect.fmtClock(it) } ?: "–") to "SUNSET",
                 Device.fmtDuration(sky.dayLength) to "DAY LENGTH",
                 (sky.goldenEvening?.let { "≈ " + Collect.fmtClock(it) } ?: "–") to "GOLDEN HOUR",
-                moon.name to "MOON",
-                "${moon.illumination}%" to "MOON LIT",
+                Device.fmtDuration(sky.daylightLeft) to "DAYLIGHT LEFT",
             )))
-            addView(Ui.spacer(context, 14))
-            addView(Ui.text(context, if (moon.daysToFull == 0) "Full moon tonight." else "Full moon in ${moon.daysToFull} days.", 13f, Ui.FAINT))
         })
+
+        // Sun: where it is now.
+        val sun = Device.sunNow()
+        val nowT = LocalTime.now()
+        add(col, skyCard(
+            "SUN",
+            SkyArt.sun(this, 88f, sun.up),
+            when {
+                sun.up -> "Sun is up"
+                sky.sunrise != null && nowT.isBefore(sky.sunrise) -> "Before sunrise"
+                else -> "Sun has set"
+            },
+            when {
+                sun.up && sky.daylightLeft != null -> "${Device.fmtDuration(sky.daylightLeft)} of daylight left"
+                sky.sunrise != null && nowT.isBefore(sky.sunrise) -> "Rises at ${Collect.fmtClock(sky.sunrise)}"
+                else -> "Rises tomorrow around ${sky.sunrise?.let { Collect.fmtClock(it) } ?: "–"}"
+            },
+            listOf(
+                String.format(Locale.ENGLISH, "%.0f°", sun.elevationDeg) to "HEIGHT IN SKY",
+                (sun.solarNoon?.let { Collect.fmtClock(it) } ?: "–") to "HIGHEST AT",
+                (sky.goldenEvening?.let { "≈ " + Collect.fmtClock(it) } ?: "–") to "GOLDEN HOUR",
+            ),
+        ))
+
+        // Moon: tonight's real phase.
+        val moon = Device.moon()
+        val synodic = 29.530588853
+        val toNew = ((synodic - moon.age) % synodic).toInt()
+        add(col, skyCard(
+            "MOON",
+            SkyArt.moon(this, 88f, (moon.age / synodic).toFloat()),
+            moon.name,
+            "${moon.illumination}% lit · " + if (moon.daysToFull == 0) "full moon tonight" else "full moon in ${moon.daysToFull} days",
+            listOf(
+                "${moon.illumination}%" to "ILLUMINATED",
+                String.format(Locale.ENGLISH, "%.1f days", moon.age) to "MOON AGE",
+                (if (toNew == 0) "Tonight" else "$toNew days") to "NEW MOON IN",
+            ),
+        ))
 
         val alarm = Device.nextAlarm(this)
         val today = LocalDate.now()
@@ -348,6 +397,20 @@ class MainActivity : Activity(), SensorEventListener {
             )))
         })
     }
+
+    /** Sun or moon card: picture, name and line beside it, three stats below. */
+    private fun skyCard(title: String, art: android.graphics.Bitmap, headline: String, sub: String, stats: List<Pair<CharSequence, String>>) =
+        Ui.card(this, title).apply {
+            val row = Ui.hstack(context)
+            row.addView(ImageView(context).apply { setImageBitmap(art) }, LinearLayout.LayoutParams(Ui.dp(context, 88), Ui.dp(context, 88)))
+            val col = Ui.vstack(context).apply { setPadding(Ui.dp(context, 18), 0, 0, 0) }
+            col.addView(Ui.text(context, headline, 22f, Ui.WHITE, medium = true))
+            col.addView(Ui.text(context, sub, 14f, Ui.SOFT).apply { setPadding(0, Ui.dp(context, 8), 0, 0) })
+            row.addView(col, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(row)
+            addView(Ui.spacer(context, 18))
+            addView(Ui.statGrid(context, stats))
+        }
 
     // ----- Steps -----
 
@@ -635,6 +698,7 @@ class MainActivity : Activity(), SensorEventListener {
                 "of ${Collect.fmtBytes(p.storageTotal)}",
             ))
         }, 4)
+        add(col, topAppsCard())
         add(col, Ui.card(this, "SYSTEM").apply {
             addView(Ui.statGrid(context, listOf(
                 Collect.fmtBytes(p.ramFree) to "RAM FREE",
@@ -665,6 +729,46 @@ class MainActivity : Activity(), SensorEventListener {
         })
     }
 
+    /** Most-used apps today, refreshed every minute while this tab is open. */
+    private fun topAppsCard(): LinearLayout = Ui.card(this, "MOST USED TODAY").apply {
+        val u = apps
+        if (u == null || !u.allowed) {
+            addView(Ui.text(context, "Turn on usage access to see which apps you use most today.", 14f, Ui.SOFT))
+            addView(Ui.spacer(context, 12))
+            addView(Ui.pill(context, "Usage access", true) { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) })
+            return@apply
+        }
+        addView(Ui.statGrid(context, listOf(
+            Collect.fmtMinutes(u.totalMs / 60_000) to "SCREEN TIME",
+            "${u.unlocks}" to "UNLOCKS",
+            "${u.apps.size}" to "APPS USED",
+        )))
+        if (u.apps.isEmpty()) {
+            addView(Ui.spacer(context, 12))
+            addView(Ui.text(context, "No app used for more than a minute yet today.", 13f, Ui.FAINT))
+            return@apply
+        }
+        val top = u.apps.first().ms.coerceAtLeast(1)
+        u.apps.forEachIndexed { i, app ->
+            val row = Ui.hstack(context).apply { setPadding(0, Ui.dp(context, if (i == 0) 18 else 12), 0, 0) }
+            row.addView(ImageView(context).apply { setImageDrawable(app.icon) }, LinearLayout.LayoutParams(Ui.dp(context, 32), Ui.dp(context, 32)))
+            val mid = Ui.vstack(context).apply { setPadding(Ui.dp(context, 12), 0, Ui.dp(context, 12), 0) }
+            mid.addView(Ui.text(context, app.label, 14f, Ui.WHITE, medium = true).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+            // Bar relative to the most-used app.
+            val bar = Ui.hstack(context).apply { setPadding(0, Ui.dp(context, 6), 0, 0) }
+            val f = app.ms.toFloat() / top
+            bar.addView(View(context).apply { background = Ui.rounded(if (i == 0) Config.ACCENT else Ui.WHITE, Ui.dp(context, 3).toFloat()) },
+                LinearLayout.LayoutParams(0, Ui.dp(context, 6), f.coerceAtLeast(0.02f)))
+            bar.addView(View(context), LinearLayout.LayoutParams(0, Ui.dp(context, 6), (1f - f).coerceAtLeast(0.001f)))
+            mid.addView(bar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            row.addView(mid, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            row.addView(Ui.text(context, Collect.fmtMinutes(app.ms / 60_000), 14f, Ui.SOFT))
+            addView(row)
+        }
+        addView(Ui.spacer(context, 12))
+        addView(Ui.text(context, "Updates every minute while this tab is open.", 12f, Ui.FAINT))
+    }
+
     // ----- Setup -----
 
     private fun setupPage(col: LinearLayout) {
@@ -687,6 +791,22 @@ class MainActivity : Activity(), SensorEventListener {
                 addView(row)
             }
         }, 4)
+        add(col, Ui.card(this, "LIVE COMPASS WIDGET").apply {
+            val live = CompassService.isLive(context)
+            addView(Ui.text(context, if (live) "Live compass is on." else "Live compass is off.", 15f, Ui.WHITE, medium = true))
+            addView(Ui.spacer(context, 6))
+            addView(Ui.text(context, "Keeps the Compass widget pointing north. It runs only while the screen is on and shows a quiet notification. Add the Compass widget first.", 13f, Ui.FAINT))
+            addView(Ui.spacer(context, 12))
+            addView(Ui.pill(context, if (live) "Turn off" else "Turn on", !live) {
+                if (live) {
+                    io.execute { CompassService.stop(applicationContext) }
+                } else {
+                    if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
+                    CompassService.start(context)
+                }
+                main.postDelayed({ reload() }, 400)
+            })
+        }, 12)
         add(col, Ui.card(this, "PERMISSIONS").apply {
             val stepsOn = StepCounter.granted(context)
             addView(Ui.text(context, if (stepsOn) "Step counting is on." else "Step counting is off.", 15f, Ui.WHITE, medium = true))
