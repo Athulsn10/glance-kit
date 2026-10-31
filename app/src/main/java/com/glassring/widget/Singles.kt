@@ -151,7 +151,7 @@ object Singles {
                     rv.setChronometer(R.id.chrono, SystemClock.elapsedRealtime() + f.left, null, true)
                     rv.setChronometerCountDown(R.id.chrono, true)
                 } else {
-                    val ms = if (f.paused) f.left else Config.FOCUS_MINUTES * 60_000L
+                    val ms = if (f.paused) f.left else Store.focusMinutes(c) * 60_000L
                     rv.setTextViewText(R.id.ring_value, String.format(Locale.ENGLISH, "%02d:%02d", ms / 60_000, (ms / 1000) % 60))
                 }
                 rv.setTextViewText(R.id.ring_caption, if (f.running) "TAP TO PAUSE" else if (f.paused) "PAUSED" else "TAP TO START")
@@ -220,6 +220,12 @@ class DataWidget : SingleWidget()
 class FocusWidget : SingleWidget()
 class PressureWidget : SingleWidget()
 class CompassWidget : SingleWidget() {
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        super.onUpdate(context, manager, ids)
+        // Turned on in the app before the widget was added: start now (works while the app is open).
+        if (CompassService.isLive(context)) CompassService.start(context)
+    }
+
     override fun onDisabled(context: Context) {
         CompassService.stop(context)
         super.onDisabled(context)

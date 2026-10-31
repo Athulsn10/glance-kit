@@ -176,6 +176,12 @@ class CompassService : Service(), SensorEventListener {
             runCatching { c.startForegroundService(Intent(c, CompassService::class.java)) }
         }
 
+        /** Turn live mode on. Starts now if the widget is on the home screen, or as soon as it's added. */
+        fun enable(c: Context) {
+            setLive(c, true)
+            start(c)
+        }
+
         fun stop(c: Context) {
             setLive(c, false)
             c.stopService(Intent(c, CompassService::class.java))

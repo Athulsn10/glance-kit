@@ -13,7 +13,7 @@ android {
         targetSdk = 35
         // Each GitHub build gets a higher number, so phones accept it as an update.
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.6." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "1.7." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     signingConfigs {

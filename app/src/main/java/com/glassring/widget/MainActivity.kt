@@ -56,6 +56,7 @@ class MainActivity : Activity(), SensorEventListener {
     private var apps: Device.AppUsage? = null
     private var storage: Device.AppStorage? = null
     private var appsTab = 0 // 0 = screen time, 1 = storage
+    private val focusHaptics by lazy { Haptics(this) }
     @Volatile private var storageAt = 0L
     private val phoneTick = object : Runnable {
         override fun run() {
@@ -603,54 +604,17 @@ class MainActivity : Activity(), SensorEventListener {
 
     private fun focusPage(s: Snapshot, col: LinearLayout) {
         val f = s.focus
-        val frac = if (f.left > 0 && f.length > 0) f.left.toFloat() / f.length else 0f
         add(col, Ui.card(this).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            val box = FrameLayout(context)
-            box.addView(ImageView(context).apply {
-                setImageBitmap(RingRenderer.ring(context, 220f, listOf(RingRenderer.Arc(0f, frac, Config.ACCENT)), head = frac > 0f, dottedTrack = true))
-            }, FrameLayout.LayoutParams(Ui.dp(context, 220), Ui.dp(context, 220)))
-            val center = Ui.vstack(context).apply { gravity = Gravity.CENTER }
-            if (f.running) {
-                center.addView(Chronometer(context).apply {
-                    base = SystemClock.elapsedRealtime() + f.left
-                    isCountDown = true
-                    var done = false
-                    setOnChronometerTickListener {
-                        if (!done && SystemClock.elapsedRealtime() >= it.base) {
-                            done = true
-                            it.stop()
-                            reload(alsoWidgets = true)
-                        }
-                    }
-                    textSize = 44f
-                    setTextColor(Ui.WHITE)
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    start()
-                })
-            } else {
-                val ms = if (f.paused) f.left else Config.FOCUS_MINUTES * 60_000L
-                center.addView(Ui.text(context, String.format(Locale.ENGLISH, "%02d:%02d", ms / 60_000, (ms / 1000) % 60), 44f, Ui.WHITE, mono = true, gravity = Gravity.CENTER))
-            }
-            center.addView(Ui.text(context, if (f.running) "FOCUSING" else if (f.paused) "PAUSED" else "READY", 10f, Ui.FAINT, mono = true, gravity = Gravity.CENTER).apply {
-                setPadding(0, Ui.dp(context, 8), 0, 0)
-            })
-            box.addView(center, FrameLayout.LayoutParams(Ui.dp(context, 220), Ui.dp(context, 220)))
-            addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
-            addView(Ui.spacer(context, 16))
-            val act: (() -> Unit) -> Unit = { a ->
-                if (!io.isShutdown) io.execute { synchronized(updateLock) { a() }; runCatching { refreshAll(applicationContext) } }
-                main.postDelayed({ reload() }, 150)
-            }
-            addView(when {
-                f.running -> Ui.pillRow(context,
-                    Ui.pill(context, "Pause", true) { act { Focus.toggle(applicationContext) } },
-                    Ui.pill(context, "+5 min", false) { act { Focus.addFiveMinutes(applicationContext) } })
-                f.paused -> Ui.pillRow(context,
-                    Ui.pill(context, "Resume", true) { act { Focus.toggle(applicationContext) } },
-                    Ui.pill(context, "Stop", false) { act { Focus.stop(applicationContext) } })
-                else -> Ui.pillRow(context, Ui.pill(context, "Start ${Config.FOCUS_MINUTES} min", true) { act { Focus.toggle(applicationContext) } })
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(FocusView(context).apply {
+                bind(f, Store.focusMinutes(context))
+                onFinished = { reload(alsoWidgets = true) }
+                setOnClickListener { FocusActivity.open(context) }
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 380)))
+            addView(Ui.spacer(context, 8))
+            addView(FocusUi.controls(context, f, focusHaptics) { reload() })
+            addView(Ui.spacer(context, 10))
+            addView(Ui.pill(context, "Full screen", false) { FocusActivity.open(context) },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 44)))
         }, 4)
         val week = f.week
         val best = week.indices.maxByOrNull { week[it] } ?: 6
@@ -669,6 +633,14 @@ class MainActivity : Activity(), SensorEventListener {
             RingRenderer.bars(this, chartW, 100f, week, null, highlight = 6, minPeak = 60 * 60_000L), 100,
             days7, spread = true,
         ))
+        add(col, Ui.card(this, "HOW IT WORKS").apply {
+            addView(Ui.text(context,
+                "Pick a length and start. Work on one thing until the ring burns down, then take a 5-minute break. " +
+                    "Finished sessions count towards today's 4 dots, your streak and the weekly chart. " +
+                    "It keeps running on the home screen widget and buzzes when time is up, even with the app closed. " +
+                    "Tap the ring for a distraction-free full screen.",
+                13f, Ui.SOFT))
+        })
     }
 
     // ----- Instruments -----
@@ -808,7 +780,7 @@ class MainActivity : Activity(), SensorEventListener {
                 Collect.fmtBytes(st.totalCache) to "CACHE",
                 "${sorted.size}" to "APPS",
             )))
-            val top = sorted.firstOrNull()?.total?.coerceAtLeast(1) ?: 1
+            val top = sorted.firstOrNull()?.total?.coerceAtLeast(1L) ?: 1L
             sorted.take(10).forEachIndexed { i, a ->
                 addView(appRow(a.icon, a.label,
                     "app ${Collect.fmtBytes(a.app)} · data ${Collect.fmtBytes(a.data)} · cache ${Collect.fmtBytes(a.cache)}",
@@ -883,17 +855,20 @@ class MainActivity : Activity(), SensorEventListener {
         val list = st.apps.filter { it.cache > 0 }.sortedByDescending { it.cache }
         addView(Ui.text(context, Collect.fmtBytes(st.totalCache), 30f, Ui.WHITE, medium = true))
         addView(Ui.text(context, "cache across ${list.size} apps", 13f, Ui.SOFT).apply { setPadding(0, Ui.dp(context, 6), 0, 0) })
-        addView(Ui.spacer(context, 14))
-        addView(Ui.pill(context, "Clear cache", true) { clearAllCache() })
-        val top = list.firstOrNull()?.cache?.coerceAtLeast(1) ?: 1
+        addView(Ui.spacer(context, 10))
+        addView(Ui.text(context,
+            "Android only lets the system clear apps' own cache. Tap an app below and choose Clear cache, " +
+                "or clear everything at once from a computer with: adb shell pm trim-caches 999G",
+            12f, Ui.FAINT))
+        addView(Ui.spacer(context, 12))
+        addView(Ui.pill(context, "Clear shared-storage cache", false) { clearAllCache() },
+            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 44)))
+        val top = list.firstOrNull()?.cache?.coerceAtLeast(1L) ?: 1L
         list.take(10).forEachIndexed { i, a ->
             addView(appRow(a.icon, a.label, null, Collect.fmtBytes(a.cache), a.cache.toFloat() / top, i == 0, a.pkg))
         }
         addView(Ui.spacer(context, 12))
-        addView(Ui.text(context,
-            "Clear cache asks Android to clear every app's cache in shared storage (needs All files access once). " +
-                "Android doesn't let apps clear other apps' main cache, so tap an app above, then Storage & cache > Clear cache.",
-            12f, Ui.FAINT))
+        addView(Ui.text(context, "Tap an app to open its storage page.", 12f, Ui.FAINT))
     }
 
     private fun clearAllCache() {
@@ -942,38 +917,63 @@ class MainActivity : Activity(), SensorEventListener {
         }, 4)
         add(col, Ui.card(this, "LIVE COMPASS WIDGET").apply {
             val live = CompassService.isLive(context)
-            addView(Ui.text(context, if (live) "Live compass is on." else "Live compass is off.", 15f, Ui.WHITE, medium = true))
+            val placed = CompassService.ids(context).isNotEmpty()
+            addView(Ui.text(context, when {
+                live && placed -> "Live compass is on."
+                live -> "Live compass is on. Add the Compass widget to see it."
+                else -> "Live compass is off."
+            }, 15f, if (live) Config.ACCENT else Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
-            addView(Ui.text(context, "Keeps the Compass widget pointing north. It runs only while the screen is on and shows a quiet notification. Add the Compass widget first.", 13f, Ui.FAINT))
+            addView(Ui.text(context, "Keeps the Compass widget pointing north. It runs only while the screen is on and shows a quiet notification.", 13f, Ui.FAINT))
             addView(Ui.spacer(context, 12))
-            addView(Ui.pill(context, if (live) "Turn off" else "Turn on", !live) {
+            val toggle = Ui.pill(context, if (live) "Turn off" else "Turn on", !live) {
                 if (live) {
-                    io.execute { CompassService.stop(applicationContext) }
+                    CompassService.stop(applicationContext)
                 } else {
-                    if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
-                    CompassService.start(context)
+                    if (android.os.Build.VERSION.SDK_INT >= 33 &&
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
+                    CompassService.enable(applicationContext)
+                    if (!placed) pin(CompassWidget::class.java)
                 }
-                main.postDelayed({ reload() }, 400)
-            })
+                adapter.notifyItemChanged(TAB_SETUP)
+            }
+            if (placed) addView(toggle, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 44)))
+            else addView(Ui.pillRow(context, toggle, Ui.pill(context, "Add Compass widget", false) { pin(CompassWidget::class.java) }))
         }, 12)
         add(col, Ui.card(this, "PERMISSIONS").apply {
-            val stepsOn = StepCounter.granted(context)
-            addView(Ui.text(context, if (stepsOn) "Step counting is on." else "Step counting is off.", 15f, Ui.WHITE, medium = true))
-            if (!stepsOn) {
+            fun row(title: String, on: Boolean, why: String, onLabel: String, offLabel: String, action: () -> Unit) {
+                val head = Ui.hstack(context).apply { gravity = Gravity.CENTER_VERTICAL }
+                head.addView(Ui.text(context, title, 15f, Ui.WHITE, medium = true), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                head.addView(Ui.text(context, if (on) "ON" else "OFF", 11f, if (on) Config.ACCENT else Ui.FAINT, mono = true))
+                addView(head)
+                addView(Ui.spacer(context, 4))
+                addView(Ui.text(context, why, 12f, Ui.FAINT))
                 addView(Ui.spacer(context, 10))
-                addView(Ui.pill(context, "Allow step counting", true) { askForSteps() })
+                addView(Ui.pill(context, if (on) offLabel else onLabel, !on) { action() },
+                    LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 44)))
+                addView(Ui.spacer(context, 20))
             }
-            addView(Ui.spacer(context, 20))
-            val usage = Collect.hasUsageAccess(context)
-            addView(Ui.text(context, if (usage) "Usage access is on." else "Usage access is off (optional).", 15f, Ui.WHITE, medium = true))
-            addView(Ui.spacer(context, 6))
-            addView(Ui.text(context, "With it, the data page counts the whole day instead of from install. If Android says \"App was denied access\", tap App info, then ⋮ > Allow restricted settings, and try again.", 13f, Ui.FAINT))
-            addView(Ui.spacer(context, 12))
-            addView(Ui.pillRow(context,
-                Ui.pill(context, "Usage access", false) { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) },
-                Ui.pill(context, "App info", false) {
-                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
-                }))
+            val appInfo = { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
+            val steps = StepCounter.granted(context)
+            row("Step counting", steps, "Counts your steps from the phone's own step sensor.",
+                "Allow step counting", "Turn off in App info > Permissions") { if (steps) appInfo() else askForSteps() }
+            row("Usage access", Collect.hasUsageAccess(context),
+                "Full-day data use, most-used apps, app storage and cache. If Android says \"App was denied access\", open App info, tap ⋮ > Allow restricted settings, and try again.",
+                "Allow usage access", "Turn off usage access") { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+            val notif = android.os.Build.VERSION.SDK_INT < 33 ||
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            row("Notifications", notif, "Only for the live compass's quiet \"on\" notification.",
+                "Allow notifications", "Turn off notifications") {
+                if (notif || android.os.Build.VERSION.SDK_INT < 33) {
+                    startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
+                } else requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
+            }
+            val files = android.os.Environment.isExternalStorageManager()
+            row("All files access", files, "Only so Clear cache can open Android's clear-cache window.",
+                "Allow all files access", "Turn off all files access") {
+                runCatching { startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName"))) }
+            }
         })
         add(col, Ui.card(this, "ABOUT").apply {
             val v = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "–"
@@ -1014,6 +1014,7 @@ class MainActivity : Activity(), SensorEventListener {
         const val TAB_FOCUS = 4
         const val TAB_INSTRUMENTS = 5
         const val TAB_PHONE = 6
+        const val TAB_SETUP = 7
         private const val REQ_CLEAR_CACHE = 7
     }
 }

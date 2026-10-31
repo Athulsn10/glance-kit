@@ -52,6 +52,14 @@
                 android:resource="@xml/shortcuts" />
         </activity>
 
+        <!-- Full-screen focus timer. -->
+        <activity
+            android:name=".FocusActivity"
+            android:exported="false"
+            android:label="Focus"
+            android:screenOrientation="portrait"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <!-- Live instruments. Sensors run only while this screen is open. -->
         <activity
             android:name=".InstrumentsActivity"

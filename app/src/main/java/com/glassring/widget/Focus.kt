@@ -39,7 +39,7 @@ object Focus {
                 scheduleDone(c, pausedLeft)
             }
             else -> { // idle -> start
-                val len = TimeUnit.MINUTES.toMillis(Config.FOCUS_MINUTES)
+                val len = TimeUnit.MINUTES.toMillis(Store.focusMinutes(c))
                 Store.setRunning(c, now + len, len)
                 scheduleDone(c, len)
             }

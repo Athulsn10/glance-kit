@@ -485,7 +485,7 @@ object Views {
         } else {
             rv.setViewVisibility(R.id.chrono, View.GONE)
             rv.setViewVisibility(R.id.ring_value, View.VISIBLE)
-            rv.setTextViewText(R.id.ring_value, mmss(if (f.paused) f.left else Config.FOCUS_MINUTES * 60_000L))
+            rv.setTextViewText(R.id.ring_value, mmss(if (f.paused) f.left else Store.focusMinutes(c) * 60_000L))
             rv.setTextViewText(R.id.ring_caption, if (f.paused) "PAUSED" else "READY")
         }
         rv.setTextViewText(R.id.headline, Collect.fmtMinutes(f.todayMs / 60_000L))
@@ -499,7 +499,7 @@ object Views {
         when {
             f.running -> { primary = "Pause"; secondary = "+5 min"; secondaryAction = ACTION_PLUS }
             f.paused -> { primary = "Resume"; secondary = "Stop"; secondaryAction = ACTION_STOP }
-            else -> { primary = "Start ${Config.FOCUS_MINUTES} min"; secondary = null; secondaryAction = null }
+            else -> { primary = "Start ${Store.focusMinutes(c)} min"; secondary = null; secondaryAction = null }
         }
         rv.setTextViewText(R.id.btn_primary, primary)
         rv.setOnClickPendingIntent(R.id.btn_primary, broadcast(c, ACTION_RING, 30) { putExtra(EXTRA_PAGE, Store.PAGE_FOCUS) })

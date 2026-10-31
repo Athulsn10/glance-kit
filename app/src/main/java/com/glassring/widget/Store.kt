@@ -73,11 +73,15 @@ object Store {
 
     // ---- Focus timer state ----
     /** Wall-clock time the running session ends, or 0 when not running. */
+    /** The session length you picked (15, 25, 45 or 60 minutes). */
+    fun focusMinutes(c: Context) = prefs(c).getLong("focus_minutes", Config.FOCUS_MINUTES)
+    fun setFocusMinutes(c: Context, m: Long) = prefs(c).edit().putLong("focus_minutes", m).apply()
+
     fun focusEndAt(c: Context) = prefs(c).getLong("focus_end", 0L)
     /** Time left on a paused session, or 0 when not paused. */
     fun focusPausedLeft(c: Context) = prefs(c).getLong("focus_paused_left", 0L)
     /** Length of the current session, for drawing the ring. */
-    fun focusLength(c: Context) = prefs(c).getLong("focus_len", Config.FOCUS_MINUTES * 60_000L)
+    fun focusLength(c: Context) = prefs(c).getLong("focus_len", focusMinutes(c) * 60_000L)
     private fun segmentStart(c: Context) = prefs(c).getLong("focus_seg_start", 0L)
 
     fun setRunning(c: Context, endAt: Long, length: Long) = prefs(c).edit()
@@ -108,7 +112,7 @@ object Store {
         val e = prefs(c).edit()
             .putLong("focus_end", 0L)
             .putLong("focus_paused_left", 0L)
-            .putLong("focus_len", Config.FOCUS_MINUTES * 60_000L)
+            .putLong("focus_len", focusMinutes(c) * 60_000L)
         if (completed) e.putInt("focus_sessions", sessionsToday(c) + 1)
         e.apply()
     }

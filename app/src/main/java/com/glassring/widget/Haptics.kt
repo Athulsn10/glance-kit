@@ -95,6 +95,16 @@ class Haptics(c: Context) {
         fallback = VibrationEffect.EFFECT_TICK,
     )
 
+    /** Session complete: a swell, three rising clicks and a thud. */
+    fun celebrate() = compose(
+        Triple(VibrationEffect.Composition.PRIMITIVE_SLOW_RISE, 0.6f, 0),
+        Triple(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.5f, 60),
+        Triple(VibrationEffect.Composition.PRIMITIVE_CLICK, 0.75f, 90),
+        Triple(VibrationEffect.Composition.PRIMITIVE_CLICK, 1f, 90),
+        Triple(VibrationEffect.Composition.PRIMITIVE_THUD, 1f, 120),
+        fallback = VibrationEffect.EFFECT_HEAVY_CLICK,
+    )
+
     /** Calibration needed: a slow swell. */
     fun warn() = compose(
         Triple(VibrationEffect.Composition.PRIMITIVE_SLOW_RISE, 0.5f, 0),

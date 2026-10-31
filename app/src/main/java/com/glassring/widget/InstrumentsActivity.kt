@@ -449,7 +449,7 @@ class LevelView(context: Context) : View(context) {
                 haptics.set()
             }
             prefs.edit().putFloat("level_zx", zx).putFloat("level_zy", zy).putFloat("level_ze", zEdge).apply()
-            measure(); invalidate()
+            compute(); invalidate()
             true
         }
     }
@@ -460,12 +460,12 @@ class LevelView(context: Context) : View(context) {
         gx += (x - gx) * k
         gy += (y - gy) * k
         gz += (z - gz) * k
-        measure()
+        compute()
         feel()
         invalidate()
     }
 
-    private fun measure() {
+    private fun compute() {
         val g = sqrt(gx * gx + gy * gy + gz * gz).coerceAtLeast(0.1f)
         flat = abs(gz) / g > 0.8f
         ax = Math.toDegrees(atan2(gx.toDouble(), gz.toDouble())).toFloat() - zx
