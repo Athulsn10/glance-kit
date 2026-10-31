@@ -87,7 +87,7 @@ choose **Allow restricted settings**, then turn on Usage access again.
 
 ## Configuration
 
-Settings live in [`Config.kt`](app/src/main/java/com/glassring/widget/Config.kt):
+Settings live in [`Config.kt`](app/src/main/java/com/athulsn10/glancekit/Config.kt):
 
 | Setting | Purpose | Default |
 |---|---|---|
@@ -102,7 +102,7 @@ Settings live in [`Config.kt`](app/src/main/java/com/glassring/widget/Config.kt)
 ## Project structure
 
 ```
-app/src/main/java/com/glassring/widget/
+app/src/main/java/com/athulsn10/glancekit/
 ├── Widget.kt         Widget provider, page layouts and tap actions
 ├── Collect.kt        Reads time, battery and data usage from the device
 ├── Sampler.kt        Records history for the charts and the health estimate
