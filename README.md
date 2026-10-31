@@ -8,9 +8,22 @@ Every widget reads its data directly from the device. No accounts, no sign-in, n
 
 | Widget | Size | What it shows |
 |---|---|---|
-| **Glass Ring** | 4×2, resizable | Day progress, steps, battery health, data used, a focus timer and air pressure, with charts, on six pages |
+| **Glass Ring (all-in-one)** | 4×2, resizable | Day progress, steps, battery health, data used, a focus timer and air pressure, with charts, on six pages |
+| **Today** | 2×2, stretch for chart | Day progress, time left, sunrise and sunset |
+| **Steps** | 2×2, stretch for chart | Steps towards your goal |
+| **Battery** | 2×2, stretch for chart | Level, charging speed, health |
+| **Data** | 2×2, stretch for chart | Mobile and Wi-Fi data today |
+| **Focus** | 2×2, stretch for chart | Focus timer; tap the ring to start or pause |
+| **Pressure** | 2×2, stretch for chart | Air pressure (mbar) and trend |
+| **Compass** | 2×2 | Opens the live compass and level |
 
-More widgets will be added over time.
+The separate widgets show a compact ring at 2×2 and switch to the full page with its chart when you stretch them to about 4×2.
+
+## The app
+
+Open Glance Kit for a swipeable dashboard: **Today · Steps · Battery · Data · Focus · Instruments · Phone · Setup**.
+Each tab has a large ring, more metrics than fit on a widget, and full-size charts. Instruments has a live compass;
+Setup adds widgets and manages permissions.
 
 ### Glass Ring
 

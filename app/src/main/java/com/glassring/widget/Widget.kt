@@ -41,7 +41,7 @@ private fun widgetIds(c: Context): IntArray =
     AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, RingWidgetReceiver::class.java))
 
 /** One lock for every widget update, so a background refresh can't undo a page switch. */
-private val updateLock = Any()
+internal val updateLock = Any()
 
 /** Off-main-thread work for taps, so the home screen never waits on us. */
 private val worker = Executors.newSingleThreadExecutor()
@@ -105,7 +105,7 @@ class RingWidgetReceiver : AppWidgetProvider() {
         inBackground { handle(context, intent, action) }
     }
 
-    private fun handle(context: Context, intent: Intent, action: String) {
+    private fun handle(context: Context, intent: Intent, action: String) = synchronized(updateLock) {
         when (action) {
             ACTION_NEXT -> showPage(context, Store.page(context) + 1)
             ACTION_PREV -> showPage(context, Store.page(context) - 1)
@@ -133,6 +133,7 @@ class RingWidgetReceiver : AppWidgetProvider() {
                 Focus.onAlarm(context)
                 refreshAll(context)
             }
+            else -> Unit
         }
     }
 
@@ -372,7 +373,8 @@ object Views {
     /** Opens the app on one tab. */
     fun openApp(c: Context, tab: String, code: Int): PendingIntent = PendingIntent.getActivity(
         c, code,
-        Intent(c, MainActivity::class.java).putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        Intent(c, MainActivity::class.java).putExtra("tab", tab)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 

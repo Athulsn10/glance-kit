@@ -57,6 +57,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     private lateinit var sm: SensorManager
     private var liveCompass: CompassView? = null
+    private val scrollPos = HashMap<Int, Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,8 +67,8 @@ class MainActivity : Activity(), SensorEventListener {
         val root = Ui.vstack(this).apply { setBackgroundColor(Ui.BG) }
         // Draw under the status and navigation bars, but keep content clear of them.
         root.setOnApplyWindowInsetsListener { v, insets ->
-            val bars = insets.getInsets(WindowInsets.Type.systemBars())
-            v.setPadding(0, bars.top, 0, bars.bottom)
+            val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             insets
         }
 
@@ -120,6 +121,21 @@ class MainActivity : Activity(), SensorEventListener {
         }
     }
 
+    /** Opened again from a widget while already open: just switch tab. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val i = tabs.indexOfFirst { it.equals(intent.getStringExtra("tab") ?: "", ignoreCase = true) }
+        if (i >= 0) pager.currentItem = i
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        main.removeCallbacksAndMessages(null)
+        io.shutdown()
+        sm.unregisterListener(this)
+    }
+
     override fun onResume() {
         super.onResume()
         resumed = true
@@ -135,10 +151,12 @@ class MainActivity : Activity(), SensorEventListener {
 
     /** Collects fresh data off the main thread, then redraws the tabs. */
     private fun reload(alsoWidgets: Boolean = false) {
+        if (isDestroyed || io.isShutdown) return
         io.execute {
             val s = runCatching { Collect.snapshot(applicationContext) }.getOrNull()
             if (alsoWidgets) runCatching { refreshAll(applicationContext) }
             main.post {
+                if (isDestroyed) return@post
                 if (s != null) snap = s
                 adapter.notifyDataSetChanged()
             }
@@ -176,7 +194,16 @@ class MainActivity : Activity(), SensorEventListener {
     // ---------------- Permissions ----------------
 
     private fun askForSteps() {
-        if (!StepCounter.granted(this)) requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
+        if (StepCounter.granted(this)) return
+        val p = Store.prefs(this)
+        val askedBefore = p.getBoolean("asked_steps_dialog", false)
+        if (askedBefore && !shouldShowRequestPermissionRationale(Manifest.permission.ACTIVITY_RECOGNITION)) {
+            // Android won't show the prompt again after two "Don't allow"s: open the app's settings.
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+            return
+        }
+        p.edit().putBoolean("asked_steps_dialog", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
@@ -198,6 +225,7 @@ class MainActivity : Activity(), SensorEventListener {
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             val frame = holder.itemView as FrameLayout
+            (frame.getChildAt(0) as? ScrollView)?.let { scrollPos[holder.itemViewType] = it.scrollY }
             frame.removeAllViews()
             val scroll = ScrollView(frame.context).apply { isVerticalScrollBarEnabled = false }
             val col = Ui.vstack(frame.context).apply { setPadding(Ui.dp(context, 16), Ui.dp(context, 8), Ui.dp(context, 16), Ui.dp(context, 32)) }
@@ -211,6 +239,7 @@ class MainActivity : Activity(), SensorEventListener {
             }
             scroll.addView(col)
             frame.addView(scroll, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            scrollPos[position]?.let { y -> scroll.post { scroll.scrollTo(0, y) } }
             if (position == TAB_INSTRUMENTS) updateSensors()
         }
     }
@@ -498,6 +527,14 @@ class MainActivity : Activity(), SensorEventListener {
                 center.addView(Chronometer(context).apply {
                     base = SystemClock.elapsedRealtime() + f.left
                     isCountDown = true
+                    var done = false
+                    setOnChronometerTickListener {
+                        if (!done && SystemClock.elapsedRealtime() >= it.base) {
+                            done = true
+                            it.stop()
+                            reload(alsoWidgets = true)
+                        }
+                    }
                     textSize = 44f
                     setTextColor(Ui.WHITE)
                     typeface = android.graphics.Typeface.MONOSPACE
@@ -513,7 +550,10 @@ class MainActivity : Activity(), SensorEventListener {
             box.addView(center, FrameLayout.LayoutParams(Ui.dp(context, 220), Ui.dp(context, 220)))
             addView(box, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { gravity = Gravity.CENTER_HORIZONTAL })
             addView(Ui.spacer(context, 16))
-            val act: (() -> Unit) -> Unit = { a -> io.execute { a(); runCatching { refreshAll(applicationContext) } }; main.postDelayed({ reload() }, 150) }
+            val act: (() -> Unit) -> Unit = { a ->
+                if (!io.isShutdown) io.execute { synchronized(updateLock) { a() }; runCatching { refreshAll(applicationContext) } }
+                main.postDelayed({ reload() }, 150)
+            }
             addView(when {
                 f.running -> Ui.pillRow(context,
                     Ui.pill(context, "Pause", true) { act { Focus.toggle(applicationContext) } },

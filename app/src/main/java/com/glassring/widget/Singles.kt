@@ -51,10 +51,16 @@ object Singles {
         val wide = RemoteViews(c.packageName, R.layout.single_wide)
         wide.setTextViewText(R.id.title, Views.titleFor(s, k.page))
         wide.removeAllViews(R.id.single_content)
-        wide.addView(R.id.single_content, Views.page(c, s, k.page))
+        val page = Views.page(c, s, k.page)
+        // On a separate widget the ring opens the app (Focus and Pressure keep their own taps),
+        // so it never changes the all-in-one widget's view.
+        if (k != Kind.FOCUS && k != Kind.PRESSURE) {
+            page.setOnClickPendingIntent(R.id.ring_box, Views.openApp(c, k.tab, 100 + k.ordinal))
+        }
+        wide.addView(R.id.single_content, page)
         wide.setOnClickPendingIntent(R.id.title, Views.openApp(c, k.tab, 100 + k.ordinal))
         // Android picks the largest layout that fits the widget's current size.
-        return RemoteViews(mapOf(SizeF(100f, 100f) to small, SizeF(250f, 160f) to wide))
+        return RemoteViews(mapOf(SizeF(100f, 100f) to small, SizeF(250f, 140f) to wide))
     }
 
     private fun small(c: Context, s: Snapshot, k: Kind): RemoteViews {

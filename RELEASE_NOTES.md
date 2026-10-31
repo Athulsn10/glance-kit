@@ -1,18 +1,19 @@
-## Glance Kit 1.3
+## Glance Kit 1.4
 
 **Install:** download **GlanceKit.apk** below on your phone and tap it. It installs over earlier 1.1+ versions.
 
 ### What's new
-- **Instruments page** on the widget: air pressure with trend, weather hint, altitude, 3-hour change and a pressure chart.
-- **Live compass, spirit level and barometer** in a full-screen view. Open it from the Instruments page, the app, or by long-pressing the app icon.
-- **Steps page:** daily steps from the phone's step counter, distance, goal ring, streak, hourly and 7-day charts.
-- **Cleaner layout:** ring, headline and a stats column on every page, with full-width charts and aligned labels.
-- **Instant page switching** with a short fade, using arrows and dots in the header.
-- **Battery page:** estimated health, cycle count, charging speed, time to 80%, and a chart that adapts to the data it has.
-- **Live charging updates** every minute while plugged in.
-
-### Pages
-Time · Steps · Battery · Data · Focus · Instruments
+- **New app:** a swipeable dashboard with a tab for each widget page (Today, Steps, Battery, Data, Focus, Instruments), plus Phone and Setup. Every tab has a large ring, more metrics and full-size charts.
+- **Separate widgets:** add Today, Steps, Battery, Data, Focus, Pressure or Compass on their own. They're compact at 2×2 and show the full page with its chart when you stretch them. The all-in-one widget is still there.
+- **Compass on the widget:** the Instruments page now has Compass and Level buttons, and there's a Compass widget.
+- **More metrics:**
+  - **Today:** moon phase, golden hour, day length, next alarm, and day/week/month/year rings.
+  - **Steps:** 30-day chart, calories, active hours, best hour.
+  - **Battery:** voltage, power source, average drain, estimated full charge.
+  - **Data:** network type, connection status, metered or not, estimated speed.
+  - **Phone:** storage, RAM, time since restart, security patch age, modes.
+- **Pressure** is now shown in millibars (mbar).
+- **Fixes:** counters can no longer be counted twice, tabs keep their scroll position, and tapping a widget no longer restarts the app.
 
 ### Permissions
 - **Physical activity** for steps (asked once).

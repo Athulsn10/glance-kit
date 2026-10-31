@@ -93,12 +93,13 @@ data class Snapshot(
 /** Reads everything the widget shows, straight from the phone. No accounts, no internet. */
 object Collect {
 
-    fun snapshot(c: Context): Snapshot {
+    /** Locked so the app and the widgets never sample the counters at the same time. */
+    fun snapshot(c: Context): Snapshot = synchronized(updateLock) {
         val battery = battery(c)
         Sampler.sample(c, battery)
         StepCounter.sample(c)
         Barometer.sample(c)
-        return Snapshot(
+        Snapshot(
             page = Store.page(c),
             time = time(c),
             battery = battery,
