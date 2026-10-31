@@ -19,8 +19,11 @@ Everything comes from the phone itself. No accounts, no internet.
 
 ## Get the APK without Android Studio
 
-Every push to this repo builds the app on GitHub. Open the **Actions** tab, click the latest
-green run, download **GlassRing-apk**, unzip it on your phone and tap `app-debug.apk`.
+Every push to this repo builds the app on GitHub and publishes it here:
+
+**[Download GlanceKit.apk](https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk)**
+
+Open that link on your phone and tap the file to install (allow "Install unknown apps" when asked).
 
 ## Install it with Android Studio (about 10 minutes the first time)
 

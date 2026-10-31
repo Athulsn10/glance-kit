@@ -2,7 +2,11 @@ name: Build APK
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,8 +25,20 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk GlanceKit.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: GlassRing-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: GlanceKit-apk
+          path: GlanceKit.apk
+
+      # Publishes the APK to a fixed link:
+      # https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk
+      - name: Publish to the "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Glance Kit (latest build)
+          body: "Built from ${{ github.sha }}. Download GlanceKit.apk on your phone and tap it to install."
+          files: GlanceKit.apk
+          make_latest: true
