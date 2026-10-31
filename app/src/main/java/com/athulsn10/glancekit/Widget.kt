@@ -1,4 +1,4 @@
-package com.glassring.widget
+package com.athulsn10.glancekit
 
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
@@ -20,13 +20,13 @@ import java.time.format.TextStyle
 import java.util.Locale
 import java.util.concurrent.Executors
 
-private const val ACTION_NEXT = "com.glassring.widget.NEXT"
-private const val ACTION_PREV = "com.glassring.widget.PREV"
-private const val ACTION_GOTO = "com.glassring.widget.GOTO"
-const val ACTION_RING = "com.glassring.widget.RING"
-private const val ACTION_PLUS = "com.glassring.widget.PLUS"
-private const val ACTION_STOP = "com.glassring.widget.STOP"
-const val ACTION_FOCUS_DONE = "com.glassring.widget.FOCUS_DONE"
+private const val ACTION_NEXT = "com.athulsn10.glancekit.NEXT"
+private const val ACTION_PREV = "com.athulsn10.glancekit.PREV"
+private const val ACTION_GOTO = "com.athulsn10.glancekit.GOTO"
+const val ACTION_RING = "com.athulsn10.glancekit.RING"
+private const val ACTION_PLUS = "com.athulsn10.glancekit.PLUS"
+private const val ACTION_STOP = "com.athulsn10.glancekit.STOP"
+const val ACTION_FOCUS_DONE = "com.athulsn10.glancekit.FOCUS_DONE"
 const val EXTRA_PAGE = "page"
 
 private const val RING_DP = 76f

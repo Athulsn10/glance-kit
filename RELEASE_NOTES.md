@@ -1,10 +1,9 @@
-## Glance Kit 1.15
+## Glance Kit 1.16
 
-**Install:** download **GlanceKit.apk** below on your phone and tap it. It installs over earlier 1.1+ versions.
+**Install:** download **GlanceKit.apk** below on your phone and tap it.
 
-### Changes
-- **Focus sounds removed.** The scenes are silent again, there's no sound notification, and the app is about 1.9 MB smaller.
-- The more realistic rain stays, including the silent lightning flashes.
+> **Heads-up: new package name.** The app is now `com.athulsn10.glancekit`, ready for the Play Store. Android treats it as a new app, so it **installs alongside** the old one instead of replacing it. Uninstall the old Glance Kit, then add your widgets again. Settings and history start fresh.
 
-### Also in 1.13
-- Air quality (US AQI, PM2.5) on the Clock widget and Clock page.
+### What's new
+- **Privacy policy** published at https://athulsn10.github.io/glance-kit/privacy.html and linked in Setup > About.
+- New package name: `com.athulsn10.glancekit`.

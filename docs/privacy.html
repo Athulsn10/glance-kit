@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glance Kit Privacy Policy</title>
+<meta name="description" content="How the Glance Kit Android app handles your data.">
+<style>
+  :root {
+    --bg: #ffffff; --text: #1a1a1a; --muted: #5e5e5e; --line: #e6e6e6; --card: #f6f6f6; --accent: #e8552a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b0b0b; --text: #ececec; --muted: #9a9a9a; --line: #262626; --card: #141414; --accent: #ff6a3d; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 16px 80px; }
+  .eyebrow { font: 12px/1 ui-monospace, "SF Mono", Menlo, monospace; letter-spacing: .14em; color: var(--muted); text-transform: uppercase; }
+  h1 { font-size: 34px; line-height: 1.2; margin: 10px 0 6px; letter-spacing: -.01em; }
+  h2 { font-size: 20px; margin: 40px 0 8px; }
+  p, li { color: var(--text); }
+  .muted { color: var(--muted); }
+  a { color: var(--accent); }
+  .summary { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; margin: 28px 0 8px; }
+  .summary ul { margin: 8px 0 0; padding-left: 20px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 500; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  code { font: 13px ui-monospace, "SF Mono", Menlo, monospace; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; word-break: break-word; }
+  .table-wrap { overflow-x: auto; }
+  footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Glance Kit</div>
+  <h1>Privacy Policy</h1>
+  <p class="muted">Effective 31 October 2026 · App package <code>com.athulsn10.glancekit</code></p>
+
+  <div class="summary">
+    <strong>In short</strong>
+    <ul>
+      <li>Glance Kit has no accounts, no ads, no analytics and no tracking.</li>
+      <li>Almost everything is read and kept on your phone. It never leaves it.</li>
+      <li>The only data sent anywhere is a fixed approximate location, sent to two weather services so the Clock widget can show weather and air quality.</li>
+      <li>Uninstalling the app removes everything it stored.</li>
+    </ul>
+  </div>
+
+  <h2>Who we are</h2>
+  <p>Glance Kit is an open-source Android app of home-screen widgets and a dashboard, published by its developer. You can reach the developer at <a href="mailto:athulsn34@gmail.com">athulsn34@gmail.com</a>. The source code is public at <a href="https://github.com/Athulsn10/glance-kit">github.com/Athulsn10/glance-kit</a>.</p>
+
+  <h2>Data the app uses on your phone</h2>
+  <p>To show its widgets and dashboard, Glance Kit reads the following from your phone. This information is processed on the device, stored only in the app's private storage, and never sent to the developer or anyone else.</p>
+  <div class="table-wrap">
+  <table>
+    <tr><th>What</th><th>Why</th></tr>
+    <tr><td>Battery level, charging state, temperature and health estimate</td><td>Battery widget and charts</td></tr>
+    <tr><td>Mobile and Wi-Fi data totals</td><td>Data-used widget and charts</td></tr>
+    <tr><td>Step count from the phone's step sensor</td><td>Steps widget, history and goals</td></tr>
+    <tr><td>Compass, barometer and motion sensors</td><td>Compass, spirit level, air pressure and altitude</td></tr>
+    <tr><td>App usage (which apps you used and for how long), app storage sizes and cache sizes</td><td>Screen time, most-used apps, storage and cache cards. Only if you grant Usage access.</td></tr>
+    <tr><td>Memory (RAM) use, storage space and similar phone details</td><td>Phone tab</td></tr>
+    <tr><td>Your next alarm time</td><td>Clock widget</td></tr>
+    <tr><td>Focus timer sessions and settings you choose</td><td>Focus timer, streaks and charts</td></tr>
+  </table>
+  </div>
+  <p>Glance Kit does <strong>not</strong> access your contacts, messages, photos, files' contents, microphone, camera or GPS location.</p>
+
+  <h2>Data sent off your phone</h2>
+  <p>The Clock widget and the Clock page of the all-in-one widget show weather and air quality. To get them, the app sends requests to two services:</p>
+  <ul>
+    <li><strong>MET Norway</strong> (<a href="https://api.met.no">api.met.no</a>) for the weather forecast.</li>
+    <li><strong>Open-Meteo</strong> (<a href="https://open-meteo.com">open-meteo.com</a>) for air quality.</li>
+  </ul>
+  <p>Each request contains only a <strong>fixed approximate location</strong> set in the app. This is the same location used to work out sunrise and sunset. It is <strong>not</strong> read from your phone's GPS. Like any internet request, these services can also see your IP address. They receive no other information about you or your phone.</p>
+  <p>These requests happen about every 30 minutes, and only while a Clock widget or Clock page is on your home screen. If you remove them, the requests stop. The results are stored on your phone so the widget can show them. How these services handle requests is covered by their own terms: <a href="https://api.met.no/doc/TermsOfService">MET Norway terms</a> and <a href="https://open-meteo.com/en/terms">Open-Meteo terms</a>.</p>
+  <p>Weather data comes from MET Norway, and air-quality data from Open-Meteo using Copernicus CAMS data. Both are licensed under CC BY 4.0.</p>
+
+  <h2>Permissions</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th>Permission</th><th>Used for</th></tr>
+    <tr><td>Physical activity</td><td>Reading the step sensor</td></tr>
+    <tr><td>Usage access (optional)</td><td>Screen time, most-used apps, app storage and cache sizes, and full-day data use</td></tr>
+    <tr><td>Notifications</td><td>The quiet notification shown while the live compass widget is on</td></tr>
+    <tr><td>Foreground service</td><td>Keeping the live compass widget turning while the screen is on</td></tr>
+    <tr><td>All files access (optional)</td><td>Only to open Android's own "clear app cache" screen from the Cache card</td></tr>
+    <tr><td>Internet and network state</td><td>Fetching weather and air quality</td></tr>
+    <tr><td>Vibration</td><td>Haptic feedback and the focus-timer alert</td></tr>
+  </table>
+  </div>
+  <p>Optional permissions can be turned off at any time in Android Settings. The rest of the app keeps working without them.</p>
+
+  <h2>Sharing, selling and advertising</h2>
+  <p>Glance Kit does not sell, rent or share your data with anyone. It contains no advertising, analytics or crash-reporting libraries.</p>
+
+  <h2>Keeping and deleting data</h2>
+  <p>History such as steps, battery and data-use charts is kept on your phone for a limited time, up to about 40 days depending on the chart. To delete everything at once, clear the app's storage in Android Settings or uninstall the app.</p>
+
+  <h2>Security</h2>
+  <p>Data stays in the app's private storage, which other apps can't read. Weather requests use encrypted HTTPS connections.</p>
+
+  <h2>Children</h2>
+  <p>Glance Kit is a general-purpose utility and isn't directed at children under 13. It doesn't knowingly collect personal information from anyone.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the updated version will be posted on this page with a new effective date. Significant changes will also be mentioned in the app's release notes.</p>
+
+  <h2>Contact</h2>
+  <p>If you have questions or requests about privacy, email <a href="mailto:athulsn34@gmail.com">athulsn34@gmail.com</a> or open an issue at <a href="https://github.com/Athulsn10/glance-kit/issues">github.com/Athulsn10/glance-kit/issues</a>.</p>
+
+  <footer>Glance Kit · <a href="./">Home</a> · <a href="https://github.com/Athulsn10/glance-kit">Source code</a></footer>
+</main>
+</body>
+</html>

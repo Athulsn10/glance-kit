@@ -1,4 +1,4 @@
-package com.glassring.widget
+package com.athulsn10.glancekit
 
 import android.Manifest
 import android.app.Activity
@@ -1028,6 +1028,7 @@ class MainActivity : Activity(), SensorEventListener {
             link(R.drawable.ic_mail, "Contact the developer", DEV_EMAIL) { email("Glance Kit $v", "") }
             link(R.drawable.ic_idea, "Request a feature", "Open an issue on GitHub") { openUrl("$REPO_URL/issues/new") }
             link(R.drawable.ic_code, "Source code and contributions", REPO_URL.removePrefix("https://")) { openUrl(REPO_URL) }
+            link(R.drawable.ic_shield, "Privacy policy", "athulsn10.github.io/glance-kit/privacy") { openUrl(PRIVACY_URL) }
         })
     }
 
@@ -1215,6 +1216,7 @@ class MainActivity : Activity(), SensorEventListener {
         const val TAB_SETUP = 7
         const val DEV_EMAIL = "athulsn34@gmail.com"
         const val REPO_URL = "https://github.com/Athulsn10/glance-kit"
+        const val PRIVACY_URL = "https://athulsn10.github.io/glance-kit/privacy.html"
         private const val REQ_CLEAR_CACHE = 7
     }
 }

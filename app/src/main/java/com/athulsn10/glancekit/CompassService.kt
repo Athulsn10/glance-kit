@@ -1,4 +1,4 @@
-package com.glassring.widget
+package com.athulsn10.glancekit
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -159,7 +159,7 @@ class CompassService : Service(), SensorEventListener {
     companion object {
         private const val CHANNEL = "compass_live"
         private const val NOTIFICATION_ID = 7
-        const val ACTION_STOP = "com.glassring.widget.COMPASS_STOP"
+        const val ACTION_STOP = "com.athulsn10.glancekit.COMPASS_STOP"
         private const val K_LIVE = "compass_live"
         private const val K_HEADING = "compass_heading"
 

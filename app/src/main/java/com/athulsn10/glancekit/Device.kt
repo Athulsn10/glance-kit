@@ -1,4 +1,4 @@
-package com.glassring.widget
+package com.athulsn10.glancekit
 
 import android.app.ActivityManager
 import android.app.usage.StorageStatsManager

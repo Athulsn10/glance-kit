@@ -40,15 +40,15 @@ jobs:
           name: GlanceKit-apk
           path: GlanceKit.apk
 
-      # Each build becomes a numbered release (v1.15.<run>) marked as latest, so this link
+      # Each build becomes a numbered release (v1.16.<run>) marked as latest, so this link
       # always gives the newest APK:
       # https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.15.${{ github.run_number }}
+          tag_name: v1.16.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          name: Glance Kit 1.15.${{ github.run_number }}
+          name: Glance Kit 1.16.${{ github.run_number }}
           body_path: RELEASE_NOTES.md
           generate_release_notes: true
           files: GlanceKit.apk

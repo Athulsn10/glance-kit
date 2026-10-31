@@ -4,16 +4,16 @@ plugins {
 }
 
 android {
-    namespace = "com.glassring.widget"
+    namespace = "com.athulsn10.glancekit"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.glassring.widget"
+        applicationId = "com.athulsn10.glancekit"
         minSdk = 31
         targetSdk = 35
         // Each GitHub build gets a higher number, so phones accept it as an update.
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.15." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "1.16." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     signingConfigs {

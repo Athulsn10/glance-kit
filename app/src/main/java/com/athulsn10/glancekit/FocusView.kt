@@ -1,4 +1,4 @@
-package com.glassring.widget
+package com.athulsn10.glancekit
 
 import android.content.Context
 import android.graphics.BlurMaskFilter

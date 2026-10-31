@@ -7,8 +7,8 @@
         android:shortcutShortLabel="@string/sc_compass">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.glassring.widget.InstrumentsActivity"
-            android:targetPackage="com.glassring.widget">
+            android:targetClass="com.athulsn10.glancekit.InstrumentsActivity"
+            android:targetPackage="com.athulsn10.glancekit">
             <extra android:name="tab" android:value="compass" />
         </intent>
     </shortcut>
@@ -19,8 +19,8 @@
         android:shortcutShortLabel="@string/sc_level">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.glassring.widget.InstrumentsActivity"
-            android:targetPackage="com.glassring.widget">
+            android:targetClass="com.athulsn10.glancekit.InstrumentsActivity"
+            android:targetPackage="com.athulsn10.glancekit">
             <extra android:name="tab" android:value="level" />
         </intent>
     </shortcut>
@@ -31,8 +31,8 @@
         android:shortcutShortLabel="@string/sc_baro">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetClass="com.glassring.widget.InstrumentsActivity"
-            android:targetPackage="com.glassring.widget">
+            android:targetClass="com.athulsn10.glancekit.InstrumentsActivity"
+            android:targetPackage="com.athulsn10.glancekit">
             <extra android:name="tab" android:value="barometer" />
         </intent>
     </shortcut>

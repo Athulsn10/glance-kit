@@ -1,4 +1,4 @@
-package com.glassring.widget
+package com.athulsn10.glancekit
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
