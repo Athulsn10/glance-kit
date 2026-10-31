@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glance Kit</string>
+    <string name="widget_glass_ring">Glass Ring</string>
+    <string name="widget_description">Day ring, battery health, data used and a focus timer in one widget.</string>
+</resources>
