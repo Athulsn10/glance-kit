@@ -175,6 +175,22 @@ object Collect {
         }
     }
 
+    /** How far through today we are, 0..1. */
+    fun dayFraction(): Float = LocalTime.now().toSecondOfDay() / 86_400f
+
+    /** Progress through the day, week, month and year, each 0..1. */
+    fun periodFractions(): FloatArray {
+        val now = LocalDateTime.now()
+        val d = now.toLocalDate()
+        val day = now.toLocalTime().toSecondOfDay() / 86_400.0
+        return floatArrayOf(
+            day.toFloat(),
+            (((d.dayOfWeek.value - 1) + day) / 7.0).toFloat(),
+            (((d.dayOfMonth - 1) + day) / d.lengthOfMonth()).toFloat(),
+            (((d.dayOfYear - 1) + day) / d.lengthOfYear()).toFloat(),
+        )
+    }
+
     private fun daysLeft(days: Double): String =
         if (days < 1) "${fmtMinutes((days * 24 * 60).toLong())} left"
         else {

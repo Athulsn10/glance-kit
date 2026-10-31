@@ -1,9 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Glance Kit</string>
-    <string name="widget_glass_ring">Glass Ring</string>
+    <string name="widget_glass_ring">Glass Ring (all-in-one)</string>
     <string name="widget_description">Day, steps, battery health, data, focus and pressure, with charts.</string>
     <string name="sc_compass">Compass</string>
     <string name="sc_level">Level</string>
     <string name="sc_baro">Barometer</string>
+    <string name="w_today">Today</string>
+    <string name="wd_today">Day progress, sunrise and sunset.</string>
+    <string name="w_steps">Steps</string>
+    <string name="wd_steps">Steps today towards your goal.</string>
+    <string name="w_battery">Battery</string>
+    <string name="wd_battery">Battery level, charging speed and health.</string>
+    <string name="w_data">Data</string>
+    <string name="wd_data">Mobile and Wi-Fi data used today.</string>
+    <string name="w_focus">Focus</string>
+    <string name="wd_focus">Focus timer: tap to start or pause.</string>
+    <string name="w_pressure">Pressure</string>
+    <string name="wd_pressure">Air pressure and its trend.</string>
+    <string name="w_compass">Compass</string>
+    <string name="wd_compass">Tap to open the live compass and level.</string>
 </resources>

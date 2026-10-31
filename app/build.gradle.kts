@@ -13,7 +13,7 @@ android {
         targetSdk = 35
         // Each GitHub build gets a higher number, so phones accept it as an update.
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.3." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "1.4." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     signingConfigs {
@@ -50,5 +50,7 @@ android {
 dependencies {
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.viewpager2:viewpager2:1.1.0")
+    implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 }

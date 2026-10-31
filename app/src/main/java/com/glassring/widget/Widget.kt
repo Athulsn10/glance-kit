@@ -23,11 +23,11 @@ import java.util.concurrent.Executors
 private const val ACTION_NEXT = "com.glassring.widget.NEXT"
 private const val ACTION_PREV = "com.glassring.widget.PREV"
 private const val ACTION_GOTO = "com.glassring.widget.GOTO"
-private const val ACTION_RING = "com.glassring.widget.RING"
+const val ACTION_RING = "com.glassring.widget.RING"
 private const val ACTION_PLUS = "com.glassring.widget.PLUS"
 private const val ACTION_STOP = "com.glassring.widget.STOP"
 const val ACTION_FOCUS_DONE = "com.glassring.widget.FOCUS_DONE"
-private const val EXTRA_PAGE = "page"
+const val EXTRA_PAGE = "page"
 
 private const val RING_DP = 76f
 private const val CHART_W_DP = 320f
@@ -49,9 +49,24 @@ private val worker = Executors.newSingleThreadExecutor()
 /** Full redraw of every copy of the widget with fresh data. Called on taps, timers and charging ticks. */
 fun refreshAll(c: Context) = synchronized(updateLock) {
     val ids = widgetIds(c)
-    if (ids.isEmpty()) return@synchronized
+    if (ids.isEmpty() && !Singles.anyPlaced(c)) return@synchronized
     val s = Collect.snapshot(c)
-    AppWidgetManager.getInstance(c).updateAppWidget(ids, Views.root(c, s))
+    if (ids.isNotEmpty()) AppWidgetManager.getInstance(c).updateAppWidget(ids, Views.root(c, s))
+    Singles.updateAll(c, s)
+}
+
+/** Runs [block] on a background thread while keeping the broadcast alive until it's done. */
+fun android.content.BroadcastReceiver.inBackground(block: () -> Unit) {
+    val pending = goAsync()
+    worker.execute {
+        try {
+            block()
+        } catch (e: Exception) {
+            android.util.Log.w("GlanceKit", "Widget update failed", e)
+        } finally {
+            pending.finish()
+        }
+    }
 }
 
 /**
@@ -72,7 +87,7 @@ fun showPage(c: Context, page: Int) = synchronized(updateLock) {
 class RingWidgetReceiver : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        background { refreshAll(context) }
+        inBackground { refreshAll(context) }
         RefreshWorker.schedule(context)
     }
 
@@ -81,30 +96,13 @@ class RingWidgetReceiver : AppWidgetProvider() {
     }
 
     /** Last widget removed: stop all background refreshes. */
-    override fun onDisabled(context: Context) {
-        RefreshWorker.cancelAll(context)
-        Focus.cancelAlarm(context)
-    }
+    override fun onDisabled(context: Context) = stopIfNoWidgets(context)
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action ?: return
         if (action !in OUR_ACTIONS) return
-        background { handle(context, intent, action) }
-    }
-
-    /** Runs the work on a background thread while keeping the broadcast alive until it's done. */
-    private fun background(block: () -> Unit) {
-        val pending = goAsync()
-        worker.execute {
-            try {
-                block()
-            } catch (e: Exception) {
-                android.util.Log.w("GlanceKit", "Widget update failed", e)
-            } finally {
-                pending.finish()
-            }
-        }
+        inBackground { handle(context, intent, action) }
     }
 
     private fun handle(context: Context, intent: Intent, action: String) {
@@ -113,7 +111,8 @@ class RingWidgetReceiver : AppWidgetProvider() {
             ACTION_PREV -> showPage(context, Store.page(context) - 1)
             ACTION_GOTO -> showPage(context, intent.getIntExtra(EXTRA_PAGE, 0))
             ACTION_RING -> {
-                when (Store.page(context)) {
+                // The page comes with the tap, so separate widgets act on their own page.
+                when (intent.getIntExtra(EXTRA_PAGE, Store.page(context))) {
                     Store.PAGE_TIME -> Store.cycleTimeMode(context)
                     Store.PAGE_STEPS -> Store.toggleStepsWeek(context)
                     Store.PAGE_DATA -> Store.toggleDataWeek(context)
@@ -137,7 +136,7 @@ class RingWidgetReceiver : AppWidgetProvider() {
         }
     }
 
-    private companion object {
+    companion object {
         val OUR_ACTIONS = setOf(ACTION_NEXT, ACTION_PREV, ACTION_GOTO, ACTION_RING, ACTION_PLUS, ACTION_STOP, ACTION_FOCUS_DONE)
     }
 }
@@ -167,6 +166,16 @@ object Views {
             rv.setOnClickPendingIntent(DOTS[i], broadcast(c, ACTION_GOTO, 10 + i) { putExtra(EXTRA_PAGE, i) })
         }
         return rv
+    }
+
+    /** One page on its own, used by the separate widgets when stretched wide. */
+    fun page(c: Context, s: Snapshot, page: Int): RemoteViews = when (page) {
+        Store.PAGE_STEPS -> stepsPage(c, s)
+        Store.PAGE_BATTERY -> batteryPage(c, s)
+        Store.PAGE_DATA -> dataPage(c, s)
+        Store.PAGE_FOCUS -> focusPage(c, s)
+        Store.PAGE_INSTRUMENTS -> instrumentsPage(c, s)
+        else -> timePage(c, s)
     }
 
     fun header(rv: RemoteViews, page: Int, title: String) {
@@ -250,7 +259,7 @@ object Views {
                 axis4(rv, "JAN", "APR", "JUL", "OCT", "DEC")
             }
         }
-        ringClick(c, rv)
+        ringClick(c, rv, Store.PAGE_TIME)
         return rv
     }
 
@@ -307,18 +316,18 @@ object Views {
             if (met) "Done" else steps(st.goal - st.today), if (met) "GOAL MET" else "TO GOAL",
             "${st.streak}", if (st.streak == 1) "DAY STREAK" else "DAYS STREAK",
         )
-        ringClick(c, rv)
+        ringClick(c, rv, Store.PAGE_STEPS)
         return rv
     }
 
     private const val INSTRUMENTS_TITLE = "INSTRUMENTS"
 
-    /** Barometer on the widget; tapping anywhere on the page opens the live compass and level. */
+    /** Barometer on the widget, with Compass and Level buttons that open the live instruments. */
     private fun instrumentsPage(c: Context, s: Snapshot): RemoteViews {
         val b = s.baro
-        val rv = RemoteViews(c.packageName, R.layout.page_main)
+        val rv = RemoteViews(c.packageName, R.layout.page_focus)
         val hpa = b.hpa
-        // Gauge from 970 to 1050 hPa, with a tick at standard sea-level pressure.
+        // Gauge from 970 to 1050 mbar, with a tick at standard sea-level pressure.
         val frac = if (hpa != null) ((hpa - 970f) / 80f).coerceIn(0f, 1f) else 0f
         rv.setImageViewBitmap(
             R.id.ring,
@@ -328,42 +337,44 @@ object Views {
                 markers = listOf((1013.25f - 970f) / 80f),
             ),
         )
-        rv.setTextViewText(R.id.ring_value, if (hpa != null) number("${hpa.toInt()}", "") else "–")
-        rv.setTextViewText(R.id.ring_caption, "hPa")
-        when {
-            !b.available -> {
-                rv.setTextViewText(R.id.headline, "No barometer")
-                rv.setTextViewText(R.id.sub, "Tap for compass and level")
-            }
-            hpa == null -> {
-                rv.setTextViewText(R.id.headline, "Measuring…")
-                rv.setTextViewText(R.id.sub, "Tap for compass and level")
-            }
-            else -> {
-                rv.setTextViewText(R.id.headline, b.trend)
-                rv.setTextViewText(R.id.sub, b.hint)
-            }
+        rv.setViewVisibility(R.id.chrono, View.GONE)
+        rv.setTextViewText(R.id.ring_value, if (hpa != null) "${hpa.toInt()}" else "–")
+        rv.setTextViewText(R.id.ring_caption, "MBAR")
+        if (!b.available || hpa == null) {
+            rv.setTextViewText(R.id.headline, if (b.available) "Measuring…" else "No barometer")
+            rv.setTextViewText(R.id.sub, "Compass and level still work")
+        } else {
+            rv.setTextViewText(R.id.headline, b.trend)
+            val extra = listOfNotNull(b.altitudeM?.let { "≈${it} m" }, b.change3h?.let { String.format(Locale.ENGLISH, "%+.1f/3h", it) })
+            rv.setTextViewText(R.id.sub, (listOf(b.hint) + extra).joinToString(" · "))
         }
-        stats(
-            rv,
-            b.altitudeM?.let { "≈${it} m" } ?: "–", "ALTITUDE",
-            b.change3h?.let { String.format(Locale.ENGLISH, "%+.1f", it) } ?: "–", "3H CHANGE",
-        )
+        rv.setTextViewText(R.id.btn_primary, "Compass")
+        rv.setOnClickPendingIntent(R.id.btn_primary, openInstrument(c, "compass", 61))
+        rv.setViewVisibility(R.id.btn_secondary, View.VISIBLE)
+        rv.setTextViewText(R.id.btn_secondary, "Level")
+        rv.setOnClickPendingIntent(R.id.btn_secondary, openInstrument(c, "level", 62))
+        rv.setOnClickPendingIntent(R.id.ring_box, openInstrument(c, "barometer", 63))
+
         val nowMin = System.currentTimeMillis() / 60_000L
         val firstMin = b.history.firstOrNull()?.minute ?: nowMin
         val span = (nowMin - firstMin).coerceIn(60L, 24 * 60L)
         chart(rv, RingRenderer.pressureHistory(c, CHART_W_DP, CHART_H_DP, b.history, span))
         axis4(rv, ago(span) + " AGO", ago(span * 3 / 4), ago(span / 2), ago(span / 4), "NOW")
-
-        val open = PendingIntent.getActivity(
-            c, 60,
-            Intent(c, InstrumentsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        rv.setOnClickPendingIntent(R.id.page_root, open)
-        rv.setOnClickPendingIntent(R.id.ring_box, open)
         return rv
     }
+
+    fun openInstrument(c: Context, tab: String, code: Int): PendingIntent = PendingIntent.getActivity(
+        c, code,
+        Intent(c, InstrumentsActivity::class.java).putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /** Opens the app on one tab. */
+    fun openApp(c: Context, tab: String, code: Int): PendingIntent = PendingIntent.getActivity(
+        c, code,
+        Intent(c, MainActivity::class.java).putExtra("tab", tab).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
 
     private fun steps(n: Long): String = String.format(Locale.ENGLISH, "%,d", n)
 
@@ -409,7 +420,7 @@ object Views {
         val span = (nowMin - firstMin).coerceIn(60L, 24 * 60L)
         chart(rv, RingRenderer.batteryHistory(c, CHART_W_DP, CHART_H_DP, s.batteryHistory, b.target, span))
         axis4(rv, ago(span) + " AGO", ago(span * 3 / 4), ago(span / 2), ago(span / 4), "NOW")
-        ringClick(c, rv)
+        ringClick(c, rv, Store.PAGE_BATTERY)
         return rv
     }
 
@@ -451,7 +462,7 @@ object Views {
             )
             axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
         }
-        ringClick(c, rv)
+        ringClick(c, rv, Store.PAGE_DATA)
         return rv
     }
 
@@ -489,7 +500,7 @@ object Views {
             else -> { primary = "Start ${Config.FOCUS_MINUTES} min"; secondary = null; secondaryAction = null }
         }
         rv.setTextViewText(R.id.btn_primary, primary)
-        rv.setOnClickPendingIntent(R.id.btn_primary, broadcast(c, ACTION_RING, 30))
+        rv.setOnClickPendingIntent(R.id.btn_primary, broadcast(c, ACTION_RING, 30) { putExtra(EXTRA_PAGE, Store.PAGE_FOCUS) })
         if (secondary != null && secondaryAction != null) {
             rv.setViewVisibility(R.id.btn_secondary, View.VISIBLE)
             rv.setTextViewText(R.id.btn_secondary, secondary)
@@ -500,7 +511,7 @@ object Views {
         // Scale to at least one hour so a few minutes don't fill the chart.
         chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, f.week, null, highlight = 6, minPeak = 60 * 60_000L))
         axis7(rv, lastSevenDayNames())
-        ringClick(c, rv)
+        ringClick(c, rv, Store.PAGE_FOCUS)
         return rv
     }
 
@@ -508,8 +519,8 @@ object Views {
 
     private val dayMonth = java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
 
-    private fun ringClick(c: Context, rv: RemoteViews) {
-        rv.setOnClickPendingIntent(R.id.ring_box, broadcast(c, ACTION_RING, 20))
+    private fun ringClick(c: Context, rv: RemoteViews, page: Int) {
+        rv.setOnClickPendingIntent(R.id.ring_box, broadcast(c, ACTION_RING, 20 + page) { putExtra(EXTRA_PAGE, page) })
     }
 
     private fun chart(rv: RemoteViews, bmp: Bitmap) = rv.setImageViewBitmap(R.id.chart, bmp)
@@ -545,7 +556,7 @@ object Views {
     }
 
     /** "63%" with a smaller, softer unit. */
-    private fun number(value: String, unit: String): CharSequence {
+    fun number(value: String, unit: String): CharSequence {
         val sp = SpannableString(value + unit)
         if (unit.isNotEmpty()) {
             sp.setSpan(RelativeSizeSpan(0.55f), value.length, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -562,7 +573,7 @@ object Views {
         return String.format(Locale.ENGLISH, "%02d:%02d", total / 60, total % 60)
     }
 
-    private fun broadcast(c: Context, action: String, code: Int, extras: Intent.() -> Unit = {}): PendingIntent {
+    fun broadcast(c: Context, action: String, code: Int, extras: Intent.() -> Unit = {}): PendingIntent {
         val i = Intent(c, RingWidgetReceiver::class.java).setAction(action).apply(extras)
         return PendingIntent.getBroadcast(c, code, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     }

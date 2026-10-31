@@ -59,6 +59,12 @@ object Store {
         prefs(c).edit().putString(key, s).apply()
     }
 
+    /** Last [n] days, oldest first, today last. */
+    fun lastDays(map: Map<Long, Long>, n: Int): LongArray {
+        val today = LocalDate.now().toEpochDay()
+        return LongArray(n) { i -> map[today - (n - 1) + i] ?: 0L }
+    }
+
     /** Last 7 days, oldest first, today last. */
     fun lastSevenDays(map: Map<Long, Long>): LongArray {
         val today = LocalDate.now().toEpochDay()

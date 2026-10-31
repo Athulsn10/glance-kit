@@ -369,6 +369,35 @@ object RingRenderer {
         return bmp
     }
 
+    /** A static compass rose for the Compass widget (north up). */
+    fun compassRose(c: Context, sizeDp: Float): Bitmap {
+        val (bmp, s) = newBitmap(c, sizeDp, sizeDp, 2.25f)
+        val px = bmp.width.toFloat()
+        val cv = Canvas(bmp)
+        val cx = px / 2f
+        val cy = px / 2f
+        val r = px * 0.46f
+        val minor = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = MUTED; strokeWidth = 1.2f * s; strokeCap = Paint.Cap.ROUND }
+        val major = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WHITE; strokeWidth = 2f * s; strokeCap = Paint.Cap.ROUND }
+        for (deg in 0 until 360 step 10) {
+            val (x1, y1) = point(cx, cy, r, deg / 360f)
+            val len = if (deg % 90 == 0) r * 0.16f else r * 0.08f
+            val (x2, y2) = point(cx, cy, r - len, deg / 360f)
+            cv.drawLine(x1, y1, x2, y2, if (deg % 90 == 0) major else minor)
+        }
+        // Needle: accent half to the north, white half to the south.
+        val n = Path().apply {
+            moveTo(cx, cy - r * 0.62f); lineTo(cx - r * 0.12f, cy); lineTo(cx + r * 0.12f, cy); close()
+        }
+        val sPath = Path().apply {
+            moveTo(cx, cy + r * 0.62f); lineTo(cx - r * 0.12f, cy); lineTo(cx + r * 0.12f, cy); close()
+        }
+        cv.drawPath(n, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Config.ACCENT })
+        cv.drawPath(sPath, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WHITE })
+        cv.drawCircle(cx, cy, r * 0.05f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = BG })
+        return bmp
+    }
+
     private fun point(cx: Float, cy: Float, r: Float, frac: Float): Pair<Float, Float> {
         val a = frac * 2 * PI
         return (cx + r * sin(a)).toFloat() to (cy - r * cos(a)).toFloat()

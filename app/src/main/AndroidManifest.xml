@@ -9,6 +9,8 @@
     <!-- Steps page: reads the phone's step counter. -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
+    <!-- Network type and speed estimate on the Data tab (granted automatically). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Short buzz when a focus session ends. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -50,6 +52,91 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/ring_widget_info" />
+        </receiver>
+
+        <!-- Separate widgets, one per item. -->
+        <receiver
+            android:name=".TodayWidget"
+            android:exported="true"
+            android:label="@string/w_today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_today" />
+        </receiver>
+
+        <receiver
+            android:name=".StepsWidget"
+            android:exported="true"
+            android:label="@string/w_steps">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_steps" />
+        </receiver>
+
+        <receiver
+            android:name=".BatteryWidget"
+            android:exported="true"
+            android:label="@string/w_battery">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_battery" />
+        </receiver>
+
+        <receiver
+            android:name=".DataWidget"
+            android:exported="true"
+            android:label="@string/w_data">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_data" />
+        </receiver>
+
+        <receiver
+            android:name=".FocusWidget"
+            android:exported="true"
+            android:label="@string/w_focus">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_focus" />
+        </receiver>
+
+        <receiver
+            android:name=".PressureWidget"
+            android:exported="true"
+            android:label="@string/w_pressure">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_pressure" />
+        </receiver>
+
+        <receiver
+            android:name=".CompassWidget"
+            android:exported="true"
+            android:label="@string/w_compass">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_compass" />
         </receiver>
     </application>
 </manifest>

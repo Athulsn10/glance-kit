@@ -16,8 +16,17 @@ data class StepsInfo(
     val week: LongArray,      // last 7 days, today last
     val goal: Long,
     val streak: Int,          // days in a row at or over the goal (today counts once met)
+    val month: LongArray,     // last 30 days, today last
 ) {
     val km: Double get() = today * Config.STRIDE_METRES / 1000.0
+
+    /** Rough walking estimate: about 0.04 kcal per step. */
+    val kcal: Int get() = (today * 0.04).toInt()
+
+    /** Hours today with at least 250 steps. */
+    val activeHours: Int get() = hourly.count { it >= 250 }
+
+    val bestHour: Int? get() = hourly.indices.maxByOrNull { hourly[it] }?.takeIf { hourly[it] > 0 }
 }
 
 /**
@@ -88,7 +97,7 @@ object StepCounter {
         }
         if ((daily[todayDay] ?: 0L) >= goal) streak++
 
-        return StepsInfo(ok, allowed, week[6], hourly, week, goal, streak)
+        return StepsInfo(ok, allowed, week[6], hourly, week, goal, streak, Store.lastDays(daily, 30))
     }
 
     /** One quick reading of the counter's running total. */

@@ -204,6 +204,7 @@ class CompassView(context: Context) : View(context) {
     private var unavailable = false
     private var lastCardinal = -1
     var lowAccuracy = false
+    var showTitle = true
 
     private val rot = FloatArray(9)
     private val remapped = FloatArray(9)
@@ -246,8 +247,7 @@ class CompassView(context: Context) : View(context) {
         val cy = height * 0.46f
         val r = min(width, height) * 0.40f
 
-        val title = textPaint(GREY, sp(12f), mono = true)
-        canvas.drawText("COMPASS · MAGNETIC NORTH", cx, dp(64f), title)
+        if (showTitle) canvas.drawText("COMPASS · MAGNETIC NORTH", cx, dp(64f), textPaint(GREY, sp(12f), mono = true))
 
         if (unavailable) {
             canvas.drawText("No compass sensor", cx, cy, textPaint(Color.WHITE, sp(18f)))
@@ -439,7 +439,7 @@ class BarometerView(context: Context) : View(context) {
         val p = hpa ?: info.hpa
         val top = height * 0.24f
         canvas.drawText(p?.let { String.format(Locale.ENGLISH, "%.1f", it) } ?: "–", cx, top, textPaint(Color.WHITE, sp(64f), bold = true))
-        canvas.drawText("hPa", cx, top + dp(30f), textPaint(GREY, sp(14f), mono = true))
+        canvas.drawText("mbar", cx, top + dp(30f), textPaint(GREY, sp(14f), mono = true))
 
         // Stats row.
         val alt = p?.let { SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, it).toInt() }
