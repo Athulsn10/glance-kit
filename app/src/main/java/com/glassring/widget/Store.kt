@@ -13,11 +13,12 @@ object Store {
     const val PAGE_FOCUS = 4
     const val PAGE_INSTRUMENTS = 5
     const val PAGE_COMPASS = 6
-    const val PAGE_COUNT = 7
+    const val PAGE_CLOCK = 7
+    const val PAGE_COUNT = 8
 
     fun prefs(c: Context): SharedPreferences = c.getSharedPreferences("glass_ring", Context.MODE_PRIVATE)
 
-    val PAGE_NAMES = arrayOf("Today", "Steps", "Battery", "Data", "Focus", "Instruments", "Compass")
+    val PAGE_NAMES = arrayOf("Today", "Steps", "Battery", "Data", "Focus", "Instruments", "Compass", "Clock")
 
     /** Pages shown on the all-in-one widget, in order. Set in the app's Setup tab. */
     fun pageOrder(c: Context): List<Int> {

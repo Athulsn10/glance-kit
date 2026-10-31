@@ -40,6 +40,8 @@ class ClockWidget : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         inBackground { ClockViews.update(context) }
         RefreshWorker.schedule(context)
+        Weather.schedule(context)
+        Weather.refreshSoon(context)
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
@@ -70,13 +72,30 @@ object ClockViews {
 
     fun views(c: Context, widthDp: Float): RemoteViews {
         val rv = RemoteViews(c.packageName, R.layout.clock_widget)
+        fill(c, rv, widthDp - 32f, 72f, 48f, 150)
+        return rv
+    }
+
+    /** The Clock page on the all-in-one widget. */
+    fun page(c: Context): RemoteViews {
+        val rv = RemoteViews(c.packageName, R.layout.page_clock)
+        fill(c, rv, 300f, 64f, 36f, 152)
+        return rv
+    }
+
+    /** Fills the shared views (same ids in the widget and the page). */
+    private fun fill(c: Context, rv: RemoteViews, graphWidthDp: Float, iconDp: Float, graphHeightDp: Float, code: Int) {
         val sun = Device.sunNow()
         val sky = Device.sky()
 
-        // Sun (coloured by its height) or tonight's moon.
-        val icon = if (sun.elevationDeg > -4) sunIcon(c, 72f, sun.elevationDeg)
-        else SkyArt.moon(c, 72f, (Device.moon().age / 29.530588853).toFloat())
+        // Sun (coloured by its height) or tonight's moon, with the weather on top.
+        val wx = Weather.now(c)
+        val icon = WeatherArt.icon(c, iconDp, sun.elevationDeg, (Device.moon().age / 29.530588853).toFloat(), wx?.sky)
         rv.setImageViewBitmap(R.id.clock_sky, icon)
+        if (wx != null) {
+            rv.setTextViewText(R.id.clock_weather, wx.line)
+            rv.setViewVisibility(R.id.clock_weather, android.view.View.VISIBLE)
+        } else rv.setViewVisibility(R.id.clock_weather, android.view.View.GONE)
 
         // Next alarm.
         val alarm = Device.nextAlarm(c)
@@ -84,16 +103,15 @@ object ClockViews {
         rv.setTextColor(R.id.clock_alarm, if (alarm != null) Config.ACCENT else 0xFF8A8A8A.toInt())
 
         // Sun path for today.
-        rv.setImageViewBitmap(R.id.clock_graph, sunPath(c, (widthDp - 32f).coerceAtLeast(160f), 48f, sky.sunrise, sky.sunset))
+        rv.setImageViewBitmap(R.id.clock_graph, sunPath(c, graphWidthDp.coerceAtLeast(160f), graphHeightDp, sky.sunrise, sky.sunset))
 
         // Taps: the time opens the Clock app; the alarm opens that alarm.
-        val clock = clockAppIntent(c, 150)
+        val clock = clockAppIntent(c, code)
         rv.setOnClickPendingIntent(R.id.clock_box, clock)
         rv.setOnClickPendingIntent(R.id.clock_sky, clock)
         val show = c.getSystemService(AlarmManager::class.java)?.nextAlarmClock?.showIntent
         rv.setOnClickPendingIntent(R.id.clock_alarm, show ?: clock)
-        rv.setOnClickPendingIntent(R.id.clock_graph, Views.openApp(c, "today", 151))
-        return rv
+        rv.setOnClickPendingIntent(R.id.clock_graph, Views.openApp(c, "today", code + 1))
     }
 
     private fun alarmText(at: java.time.LocalDateTime?): String {

@@ -70,6 +70,18 @@
                 android:textSize="13sp" />
 
             <TextView
+                android:id="@+id/clock_weather"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#FFEBEBEB"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            <TextView
                 android:id="@+id/clock_alarm"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

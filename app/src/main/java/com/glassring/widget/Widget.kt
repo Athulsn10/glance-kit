@@ -33,7 +33,7 @@ private const val RING_DP = 76f
 private const val CHART_W_DP = 320f
 private const val CHART_H_DP = 44f
 
-private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5, R.id.dot6)
+private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5, R.id.dot6, R.id.dot7)
 private val AXIS4 = intArrayOf(R.id.a40, R.id.a41, R.id.a42, R.id.a43, R.id.a44)
 private val AXIS7 = intArrayOf(R.id.a70, R.id.a71, R.id.a72, R.id.a73, R.id.a74, R.id.a75, R.id.a76)
 
@@ -91,6 +91,7 @@ class RingWidgetReceiver : AppWidgetProvider() {
         inBackground { refreshAll(context) }
         RefreshWorker.schedule(context)
         if (CompassService.isLive(context)) CompassService.start(context)
+        if (Weather.wanted(context)) { Weather.schedule(context); Weather.refreshSoon(context) }
     }
 
     override fun onEnabled(context: Context) {
@@ -162,7 +163,11 @@ object Views {
         rv.removeAllViews(R.id.flipper)
         // Only the pages you picked, in your order (Setup tab in the app).
         val order = Store.pageOrder(c)
-        for (p in order) rv.addView(R.id.flipper, if (p == Store.PAGE_COMPASS) compassPage(c) else page(c, s, p))
+        for (p in order) rv.addView(R.id.flipper, when (p) {
+            Store.PAGE_COMPASS -> compassPage(c)
+            Store.PAGE_CLOCK -> ClockViews.page(c)
+            else -> page(c, s, p)
+        })
         val page = Store.page(c)
         rv.setDisplayedChild(R.id.flipper, order.indexOf(page).coerceAtLeast(0))
         header(c, rv, page, titleFor(s, page))
@@ -210,6 +215,7 @@ object Views {
     }
 
     fun titleFor(s: Snapshot, page: Int): String = when (page) {
+        Store.PAGE_CLOCK -> clockTitle()
         Store.PAGE_COMPASS -> "COMPASS"
         Store.PAGE_INSTRUMENTS -> INSTRUMENTS_TITLE
         Store.PAGE_STEPS -> if (s.stepsWeek) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
@@ -221,6 +227,7 @@ object Views {
 
     /** Cheap version for page switches: reads only what the title needs. */
     fun titleFor(c: Context, page: Int): String = when (page) {
+        Store.PAGE_CLOCK -> clockTitle()
         Store.PAGE_COMPASS -> "COMPASS"
         Store.PAGE_INSTRUMENTS -> INSTRUMENTS_TITLE
         Store.PAGE_STEPS -> if (Store.stepsWeek(c)) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
@@ -229,6 +236,9 @@ object Views {
         Store.PAGE_FOCUS -> focusTitle(Collect.focus(c))
         else -> Collect.time(c).label
     }
+
+    private fun clockTitle() =
+        java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.ENGLISH)).uppercase()
 
     private fun batteryTitle(b: BatteryInfo) = when {
         b.charging -> "BATTERY · CHARGING"

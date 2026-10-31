@@ -31,6 +31,8 @@
             <action android:name="android.intent.action.SHOW_ALARMS" />
         </intent>
     </queries>
+    <!-- Weather for the Clock widget (MET Norway). Nothing else uses the internet. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Short buzz when a focus session ends. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 

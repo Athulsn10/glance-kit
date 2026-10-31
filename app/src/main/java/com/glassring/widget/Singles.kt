@@ -203,6 +203,7 @@ fun stopIfNoWidgets(c: Context) {
     if (main.isEmpty() && !Singles.anyPlaced(c) && ClockViews.ids(c).isEmpty()) {
         RefreshWorker.cancelAll(c)
         Focus.cancelAlarm(c)
+        Weather.cancel(c)
     }
 }
 

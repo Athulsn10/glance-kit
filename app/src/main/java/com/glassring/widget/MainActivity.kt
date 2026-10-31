@@ -985,7 +985,14 @@ class MainActivity : Activity(), SensorEventListener {
             val v = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull() ?: "–"
             addView(Ui.text(context, "Glance Kit $v", 15f, Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
-            addView(Ui.text(context, "Everything is read on your phone. No accounts, no tracking, nothing leaves the device.", 13f, Ui.FAINT))
+            addView(Ui.text(context,
+                "Everything is read on your phone. No accounts, no tracking. The only thing sent out is your rough location " +
+                    "(the same one used for sunrise), to MET Norway for the Clock widget's weather.",
+                13f, Ui.FAINT))
+            addView(Ui.spacer(context, 6))
+            addView(Ui.text(context, "Weather data: MET Norway (api.met.no), CC BY 4.0.", 12f, Ui.FAINT).apply {
+                setOnClickListener { openUrl("https://api.met.no/doc/License") }
+            })
             addView(Ui.spacer(context, 8))
             fun link(icon: Int, title: String, sub: String, onClick: () -> Unit) {
                 val r = Ui.hstack(context).apply {
@@ -1030,6 +1037,7 @@ class MainActivity : Activity(), SensorEventListener {
             Store.setPageOrder(applicationContext, newOrder)
             io.execute {
                 runCatching {
+                    if (Weather.wanted(applicationContext)) { Weather.schedule(applicationContext); Weather.refreshSoon(applicationContext) }
                     refreshAll(applicationContext)
                     if (CompassService.isLive(applicationContext) && !CompassService.hasHost(applicationContext)) {
                         CompassService.halt(applicationContext)

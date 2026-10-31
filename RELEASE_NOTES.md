@@ -1,14 +1,16 @@
-## Glance Kit 1.11
+## Glance Kit 1.12
 
 **Install:** download **GlanceKit.apk** below on your phone and tap it. It installs over earlier 1.1+ versions.
 
 ### What's new
-- **New Clock widget** (4×2, resizable). The Today widget stays as it was.
-  - **Live time and date.** They tick on their own, so they cost no battery. Tap the time to open your Clock app.
-  - **Next alarm** with its day. It updates the moment you set or change an alarm, and tapping it opens that alarm.
-  - **The sun or the moon, as it is right now.** The sun's colour follows its real height in the sky: deep red at twilight, orange at golden hour, warm yellow through the day and pale near midday. Near the horizon it sits half-set behind a horizon line. After dark it switches to tonight's moon face, in the right phase.
-  - **Today's sun path.** A curve shows the sun rising above the horizon and dipping below at night, with the part already passed lit up. A dot shows where the sun or moon is now, and sunrise and sunset are marked on the horizon with their times.
-- Add it from the widget picker or from Setup > Widgets in the app.
+- **Weather on the Clock widget.** The current weather is drawn on top of the sun or moon: clouds, rain, thunderstorms, snow or mist. The sun keeps its real-time colour, and at night the weather sits over tonight's moon face. When the sky is clear, you see just the sun or moon as before.
+- **A weather line** under the date, for example "28°  Light rain · H 31° L 24°".
+- **Clock page on the all-in-one widget.** In Setup > All-in-one widget pages, tap + next to Clock and drag it where you want. It shows the time, weather, next alarm and sun path, and the page title shows the date.
 
-### Also in 1.10
-- Calm scenes for the focus timer: rain, leaves, snow, fireflies and stars.
+### About the weather
+- It comes from MET Norway's free forecast service (api.met.no, CC BY 4.0).
+- It's fetched about every 30 minutes, only when you're online and only while a Clock widget or Clock page is on your home screen. Each fetch is a few kilobytes, so battery use is negligible.
+- Only the rough location the app already uses for sunrise is sent. If the weather is more than 3 hours old, it's hidden rather than shown out of date.
+
+### Also in 1.11
+- The new Clock widget: live time, next alarm, a real-colour sun or the moon face, and the sun path.
