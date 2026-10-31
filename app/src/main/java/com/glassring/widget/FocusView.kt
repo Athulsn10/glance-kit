@@ -241,8 +241,9 @@ class FocusView(context: Context) : View(context) {
      */
     private val frame = object : Runnable {
         override fun run() {
-            val onScreen = isShown && getGlobalVisibleRect(vis)
+            val onScreen = isShown && getGlobalVisibleRect(vis) && windowVisibility == VISIBLE
             if (onScreen) invalidate()
+            FocusSound.setPreview(context, this@FocusView, onScreen)
             val busy = running || SystemClock.uptimeMillis() < celebrateUntil || embers.isNotEmpty() ||
                 Ambient.kind(context) != Ambient.Kind.NONE
             postDelayed(this, if (!onScreen) 1000L else if (busy) 33L else 66L)
@@ -255,7 +256,14 @@ class FocusView(context: Context) : View(context) {
         post(frame)
     }
 
+    override fun onWindowVisibilityChanged(visibility: Int) {
+        super.onWindowVisibilityChanged(visibility)
+        if (visibility != VISIBLE) FocusSound.setPreview(context, this, false)
+        else { removeCallbacks(frame); if (isAttachedToWindow) post(frame) }
+    }
+
     override fun onDetachedFromWindow() {
+        FocusSound.setPreview(context, this, false)
         removeCallbacks(frame)
         super.onDetachedFromWindow()
     }

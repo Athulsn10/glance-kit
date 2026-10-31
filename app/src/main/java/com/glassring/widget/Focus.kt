@@ -44,6 +44,7 @@ object Focus {
                 scheduleDone(c, len)
             }
         }
+        FocusSound.update(c)
     }
 
     fun addFiveMinutes(c: Context) {
@@ -56,6 +57,7 @@ object Focus {
     fun stop(c: Context) {
         cancelDone(c)
         Store.finish(c, completed = false)
+        FocusSound.update(c)
     }
 
     /**
@@ -89,6 +91,7 @@ object Focus {
         // Ignore if the session was paused, stopped or extended since the alarm was set.
         if (end > 0 && end <= System.currentTimeMillis() + 5_000) {
             Store.finish(c, completed = true)
+            FocusSound.update(c)
             try {
                 c.getSystemService(VibratorManager::class.java)?.defaultVibrator
                     ?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 120, 120, 120), -1))

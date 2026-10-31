@@ -11,6 +11,7 @@ import android.graphics.Shader
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.sin
 import kotlin.random.Random
@@ -58,71 +59,207 @@ abstract class Ambient(protected val w: Float, protected val h: Float, protected
 }
 
 // ---------------------------------------------------------------------------
-// Rain: three depths of streaks, slanted by a soft wind, with splashes and ripples.
+// Rain: drops at three depths with soft motion-blur tails, drifting sheets of heavier rain,
+// gusts that change the slant, crown splashes, beads of water sliding down the "glass",
+// and lightning (with thunder when focus sounds are on).
 // ---------------------------------------------------------------------------
-private class Rain(w: Float, h: Float, d: Float) : Ambient(w, h, d) {
+private class Rain(w: Float, h: Float, d: Float) : Ambient(w, h, d), FocusSound.LightningListener {
     private class Drop(var x: Float, var y: Float, val z: Float)
-    private class Splash(var x: Float, var y: Float, var t: Float, val z: Float)
+    private class Splash(val x: Float, val y: Float, var t: Float, val z: Float, val vx: FloatArray, val vy: FloatArray)
+    private class Bead(var x: Float, var y: Float, val r: Float, var sliding: Boolean, var speed: Float, var trail: Float)
     private val drops = ArrayList<Drop>()
     private val splashes = ArrayList<Splash>()
+    private val beads = ArrayList<Bead>()
     private var time = 0f
+    private var gust = 0f          // extra wind from a passing gust
+    private var gustTarget = 0f
+    private var nextGust = 6f
     private val ground get() = h - dp(6f)
 
-    init {
-        repeat(150) { drops.add(Drop(rnd.nextFloat() * w * 1.2f - w * 0.1f, rnd.nextFloat() * h, 0.25f + rnd.nextFloat() * 0.75f)) }
+    // Lightning.
+    private var flashT = -1f       // seconds since the flash started, -1 = none
+    private var flashPower = 1f
+    private var nextFlash = 18f
+    private val bolt = Path()
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND
     }
 
-    private fun wind() = dp(60f) + dp(30f) * sin(time * 0.3f)
+    init {
+        repeat(190) { drops.add(Drop(rnd.nextFloat() * w * 1.3f - w * 0.15f, rnd.nextFloat() * h, 0.15f + rnd.nextFloat() * 0.85f)) }
+        repeat(16) { beads.add(newBead(rnd.nextFloat() * h)) }
+        FocusSound.listen(this)
+    }
+
+    private fun newBead(y: Float) = Bead(rnd.nextFloat() * w, y, dp(1.2f + rnd.nextFloat() * 2.6f), false, 0f, 0f)
+
+    private fun wind() = dp(50f) + dp(25f) * sin(time * 0.27f) + gust
+
+    /** Called by the sound service just before it plays thunder, so light and sound match. */
+    override fun onLightning(power: Float) { strike(power) }
+
+    private fun strike(power: Float) {
+        flashT = 0f
+        flashPower = power
+        // A jagged bolt from the top, with a branch or two.
+        bolt.reset()
+        var x = w * (0.15f + rnd.nextFloat() * 0.7f)
+        var y = 0f
+        bolt.moveTo(x, y)
+        val end = h * (0.45f + rnd.nextFloat() * 0.35f)
+        while (y < end) {
+            x += (rnd.nextFloat() - 0.5f) * dp(26f)
+            y += dp(8f + rnd.nextFloat() * 16f)
+            bolt.lineTo(x, y)
+            if (rnd.nextFloat() < 0.12f) {
+                var bx = x; var by = y
+                val dir = if (rnd.nextBoolean()) 1 else -1
+                bolt.moveTo(bx, by)
+                repeat(3 + rnd.nextInt(4)) {
+                    bx += dir * dp(6f + rnd.nextFloat() * 14f); by += dp(6f + rnd.nextFloat() * 12f)
+                    bolt.lineTo(bx, by)
+                }
+                bolt.moveTo(x, y)
+            }
+        }
+    }
 
     override fun step(dt: Float) {
         time += dt
+        // Gusts come and go.
+        nextGust -= dt
+        if (nextGust <= 0) { gustTarget = dp(rnd.nextFloat() * 90f - 20f); nextGust = 5f + rnd.nextFloat() * 9f }
+        gust += (gustTarget - gust) * (dt * 0.6f)
+        if (abs(gustTarget - gust) < dp(2f)) gustTarget *= 0.98f
+
+        // Lightning on its own only when the sound service isn't driving it.
+        if (!FocusSound.active) {
+            nextFlash -= dt
+            if (nextFlash <= 0) { strike(0.6f + rnd.nextFloat() * 0.4f); nextFlash = 25f + rnd.nextFloat() * 40f }
+        }
+        if (flashT >= 0) { flashT += dt; if (flashT > 1.2f) flashT = -1f }
+
         val wind = wind()
         for (r in drops) {
-            val speed = dp(520f + 900f * r.z)
+            val speed = dp(520f + 950f * r.z)
             r.y += speed * dt
             r.x += wind * r.z * dt
-            if (r.y > ground - (1 - r.z) * h * 0.25f) {
-                if (r.z > 0.55f && splashes.size < 40) splashes.add(Splash(r.x, r.y, 0f, r.z))
+            if (r.y > ground - (1 - r.z) * h * 0.28f) {
+                if (r.z > 0.5f && splashes.size < 50) {
+                    val n = 3
+                    splashes.add(Splash(r.x, r.y, 0f, r.z,
+                        FloatArray(n) { (rnd.nextFloat() - 0.5f) * dp(70f) * r.z },
+                        FloatArray(n) { -dp(40f + rnd.nextFloat() * 50f) * r.z }))
+                }
                 r.y = -rnd.nextFloat() * h * 0.3f
-                r.x = rnd.nextFloat() * w * 1.2f - w * 0.1f
+                r.x = rnd.nextFloat() * w * 1.3f - w * 0.15f
             }
         }
         val it = splashes.iterator()
-        while (it.hasNext()) { val s = it.next(); s.t += dt; if (s.t > 0.45f) it.remove() }
+        while (it.hasNext()) { val s = it.next(); s.t += dt; if (s.t > 0.5f) it.remove() }
+
+        // Beads on the glass: now and then one grows heavy and slides, leaving a trail.
+        for (i in beads.indices) {
+            val b = beads[i]
+            if (!b.sliding && rnd.nextFloat() < dt * 0.04f) { b.sliding = true; b.speed = dp(18f + rnd.nextFloat() * 40f) }
+            if (b.sliding) {
+                b.y += b.speed * dt
+                b.x += sin(time * 3f + i) * dp(4f) * dt
+                b.trail = (b.trail + b.speed * dt).coerceAtMost(dp(60f))
+                if (b.y > h + b.r) beads[i] = newBead(-b.r - rnd.nextFloat() * h * 0.2f)
+            }
+        }
     }
 
     override fun draw(c: Canvas) {
-        // A faint cool mist towards the bottom.
-        paint.shader = LinearGradient(0f, h * 0.55f, 0f, h, 0x00000000, 0x22607080, Shader.TileMode.CLAMP)
-        c.drawRect(0f, h * 0.55f, w, h, paint)
+        // Lightning lights up the whole sky for a moment, with a flicker or two.
+        val flash = if (flashT < 0) 0f else {
+            val f = flashT
+            val pulse = when {
+                f < 0.06f -> f / 0.06f
+                f < 0.12f -> 0.35f
+                f < 0.18f -> 0.9f
+                f < 0.26f -> 0.3f
+                else -> 0.6f * exp(-(f - 0.26f) * 5f)
+            }
+            pulse * flashPower
+        }
+        if (flash > 0.01f) {
+            paint.shader = LinearGradient(0f, 0f, 0f, h, Color.argb((150 * flash).toInt(), 190, 200, 235),
+                Color.argb((40 * flash).toInt(), 120, 130, 160), Shader.TileMode.CLAMP)
+            c.drawRect(0f, 0f, w, h, paint)
+            paint.shader = null
+            if (flashT < 0.35f) {
+                glowPaint.strokeWidth = dp(7f)
+                glowPaint.color = Color.argb((90 * flash).toInt(), 170, 190, 255)
+                c.drawPath(bolt, glowPaint)
+                glowPaint.strokeWidth = dp(1.8f)
+                glowPaint.color = Color.argb((255 * flash).toInt().coerceAtMost(255), 240, 244, 255)
+                c.drawPath(bolt, glowPaint)
+            }
+        }
+
+        // Cool mist near the ground.
+        paint.shader = LinearGradient(0f, h * 0.5f, 0f, h, 0x00000000, 0x28607080, Shader.TileMode.CLAMP)
+        c.drawRect(0f, h * 0.5f, w, h, paint)
         paint.shader = null
+
+        // Drifting sheets of heavier rain.
+        val wind = wind()
+        for (k in 0 until 3) {
+            val cx = ((time * (dp(20f) + wind * 0.3f) + k * w * 0.45f) % (w * 1.6f)) - w * 0.3f
+            val bw = w * 0.35f
+            paint.shader = LinearGradient(cx - bw, 0f, cx + bw, 0f,
+                intArrayOf(0x00A0B4C8, 0x14A0B4C8, 0x00A0B4C8), null, Shader.TileMode.CLAMP)
+            c.drawRect(cx - bw, 0f, cx + bw, h, paint)
+        }
+        paint.shader = null
+
+        // Drops: a faint long tail and a brighter head, like a camera's motion blur.
         paint.style = Paint.Style.STROKE
         paint.strokeCap = Paint.Cap.ROUND
-        val wind = wind()
+        val lit = 1f + flash * 1.5f
         for (r in drops) {
-            val speed = dp(520f + 900f * r.z)
-            val len = dp(10f + 22f * r.z)
+            val speed = dp(520f + 950f * r.z)
+            val len = dp(12f + 26f * r.z)
             val dx = wind * r.z / speed * len
-            paint.strokeWidth = dp(0.6f + 1.1f * r.z)
-            paint.color = Color.argb((40 + 120 * r.z).toInt(), 190, 205, 220)
+            val a = ((30 + 120 * r.z) * lit).toInt().coerceAtMost(255)
+            paint.strokeWidth = dp(0.5f + 1.1f * r.z)
+            paint.color = Color.argb(a / 3, 180, 196, 214)
             c.drawLine(r.x, r.y, r.x - dx, r.y - len, paint)
+            paint.color = Color.argb(a, 205, 218, 232)
+            c.drawLine(r.x, r.y, r.x - dx * 0.35f, r.y - len * 0.35f, paint)
         }
+
+        // Splashes: a flattened ripple and a small crown of droplets.
         for (s in splashes) {
-            val p = s.t / 0.45f
-            val a = ((1 - p) * 140 * s.z).toInt()
+            val p = s.t / 0.5f
+            val a = ((1 - p) * 150 * s.z).toInt()
             paint.color = Color.argb(a, 200, 215, 230)
             paint.strokeWidth = dp(0.8f)
-            // Ripple ring, flattened like water seen at an angle.
-            val rw = dp(4f + 14f * p) * s.z
-            c.drawOval(s.x - rw, s.y - rw * 0.25f, s.x + rw, s.y + rw * 0.25f, paint)
-            // Two tiny droplets thrown up.
-            val up = dp(10f) * s.z * sin(p * PI.toFloat())
+            val rw = dp(4f + 16f * p) * s.z
+            c.drawOval(s.x - rw, s.y - rw * 0.22f, s.x + rw, s.y + rw * 0.22f, paint)
             paint.style = Paint.Style.FILL
-            c.drawCircle(s.x - dp(4f) * p, s.y - up, dp(0.9f), paint)
-            c.drawCircle(s.x + dp(5f) * p, s.y - up * 0.8f, dp(0.8f), paint)
+            for (i in s.vx.indices) {
+                val t = s.t
+                c.drawCircle(s.x + s.vx[i] * t, s.y + s.vy[i] * t + dp(260f) * t * t, dp(0.9f) * s.z + 0.5f, paint)
+            }
             paint.style = Paint.Style.STROKE
         }
         paint.style = Paint.Style.FILL
+
+        // Beads of water on the glass, with a bright catch-light; sliding ones leave a trail.
+        for (b in beads) {
+            if (b.sliding && b.trail > 0) {
+                paint.shader = LinearGradient(b.x, b.y - b.trail, b.x, b.y, 0x00C8D8E8, 0x30C8D8E8, Shader.TileMode.CLAMP)
+                c.drawRoundRect(b.x - b.r * 0.45f, b.y - b.trail, b.x + b.r * 0.45f, b.y, b.r, b.r, paint)
+                paint.shader = null
+            }
+            paint.color = Color.argb(70, 150, 170, 190)
+            c.drawCircle(b.x, b.y, b.r, paint)
+            paint.color = Color.argb(160, 235, 242, 250)
+            c.drawCircle(b.x - b.r * 0.3f, b.y - b.r * 0.35f, b.r * 0.32f, paint)
+        }
     }
 }
 
