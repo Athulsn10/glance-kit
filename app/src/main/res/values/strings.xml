@@ -8,6 +8,8 @@
     <string name="sc_baro">Barometer</string>
     <string name="w_today">Today</string>
     <string name="wd_today">Day progress, sunrise and sunset.</string>
+    <string name="w_clock">Clock</string>
+    <string name="wd_clock">Time, next alarm, and the sun or moon as it is right now.</string>
     <string name="w_steps">Steps</string>
     <string name="wd_steps">Steps today towards your goal.</string>
     <string name="w_battery">Battery</string>

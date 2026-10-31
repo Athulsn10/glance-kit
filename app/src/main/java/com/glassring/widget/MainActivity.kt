@@ -905,6 +905,7 @@ class MainActivity : Activity(), SensorEventListener {
             addView(Ui.spacer(context, 8))
             listOf(
                 "All-in-one" to RingWidgetReceiver::class.java,
+                "Clock" to ClockWidget::class.java,
                 "Today" to TodayWidget::class.java,
                 "Steps" to StepsWidget::class.java,
                 "Battery" to BatteryWidget::class.java,

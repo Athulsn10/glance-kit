@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clock widget icon: a clock face with a small sun. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="48" android:viewportHeight="48">
+    <path android:pathData="M22,8a14,14 0,1 0,0.01 0z" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.5" android:fillColor="#00000000" />
+    <path android:pathData="M22,14V22L27,26" android:strokeColor="#FFFFFFFF" android:strokeWidth="2.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" />
+    <path android:pathData="M38,32a5,5 0,1 0,0.01 0z" android:fillColor="#FFFF6A3D" />
+</vector>

@@ -49,6 +49,7 @@ private val worker = Executors.newSingleThreadExecutor()
 /** Full redraw of every copy of the widget with fresh data. Called on taps, timers and charging ticks. */
 fun refreshAll(c: Context) = synchronized(updateLock) {
     val ids = widgetIds(c)
+    runCatching { ClockViews.update(c) } // cheap: no data collection needed
     if (ids.isEmpty() && !Singles.anyPlaced(c)) return@synchronized
     val s = Collect.snapshot(c)
     if (ids.isNotEmpty()) AppWidgetManager.getInstance(c).updateAppWidget(ids, Views.root(c, s))

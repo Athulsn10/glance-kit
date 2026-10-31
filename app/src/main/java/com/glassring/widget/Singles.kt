@@ -200,7 +200,7 @@ object Singles {
 /** Stops background refreshes only when no Glance Kit widget of any kind is left. */
 fun stopIfNoWidgets(c: Context) {
     val main = AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, RingWidgetReceiver::class.java))
-    if (main.isEmpty() && !Singles.anyPlaced(c)) {
+    if (main.isEmpty() && !Singles.anyPlaced(c) && ClockViews.ids(c).isEmpty()) {
         RefreshWorker.cancelAll(c)
         Focus.cancelAlarm(c)
     }

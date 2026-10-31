@@ -26,6 +26,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Finds the phone's Clock app, so tapping the time opens it. -->
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
     </queries>
     <!-- Short buzz when a focus session ends. -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -90,6 +94,19 @@
         </service>
 
         <!-- Separate widgets, one per item. -->
+        <receiver
+            android:name=".ClockWidget"
+            android:exported="true"
+            android:label="@string/w_clock">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- Redraw when an alarm is set, changed or dismissed. -->
+                <action android:name="android.app.action.NEXT_ALARM_CLOCK_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/w_clock" />
+        </receiver>
         <receiver
             android:name=".TodayWidget"
             android:exported="true"
