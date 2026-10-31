@@ -33,8 +33,6 @@
     </queries>
     <!-- Weather for the Clock widget (MET Norway). Nothing else uses the internet. -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Focus sounds keep playing through a session with the screen off. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- Short buzz when a focus session ends. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -194,11 +192,5 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/w_compass" />
         </receiver>
-        <!-- Focus sounds (rain, leaves, snow, night, stars). Runs only while a scene's sound is playing. -->
-        <service
-            android:name=".FocusSound"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
-
     </application>
 </manifest>

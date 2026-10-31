@@ -61,9 +61,9 @@ abstract class Ambient(protected val w: Float, protected val h: Float, protected
 // ---------------------------------------------------------------------------
 // Rain: drops at three depths with soft motion-blur tails, drifting sheets of heavier rain,
 // gusts that change the slant, crown splashes, beads of water sliding down the "glass",
-// and lightning (with thunder when focus sounds are on).
+// and the occasional flash of lightning.
 // ---------------------------------------------------------------------------
-private class Rain(w: Float, h: Float, d: Float) : Ambient(w, h, d), FocusSound.LightningListener {
+private class Rain(w: Float, h: Float, d: Float) : Ambient(w, h, d) {
     private class Drop(var x: Float, var y: Float, val z: Float)
     private class Splash(val x: Float, val y: Float, var t: Float, val z: Float, val vx: FloatArray, val vy: FloatArray)
     private class Bead(var x: Float, var y: Float, val r: Float, var sliding: Boolean, var speed: Float, var trail: Float)
@@ -88,15 +88,11 @@ private class Rain(w: Float, h: Float, d: Float) : Ambient(w, h, d), FocusSound.
     init {
         repeat(190) { drops.add(Drop(rnd.nextFloat() * w * 1.3f - w * 0.15f, rnd.nextFloat() * h, 0.15f + rnd.nextFloat() * 0.85f)) }
         repeat(16) { beads.add(newBead(rnd.nextFloat() * h)) }
-        FocusSound.listen(this)
     }
 
     private fun newBead(y: Float) = Bead(rnd.nextFloat() * w, y, dp(1.2f + rnd.nextFloat() * 2.6f), false, 0f, 0f)
 
     private fun wind() = dp(50f) + dp(25f) * sin(time * 0.27f) + gust
-
-    /** Called by the sound service just before it plays thunder, so light and sound match. */
-    override fun onLightning(power: Float) { strike(power) }
 
     private fun strike(power: Float) {
         flashT = 0f
@@ -132,11 +128,9 @@ private class Rain(w: Float, h: Float, d: Float) : Ambient(w, h, d), FocusSound.
         gust += (gustTarget - gust) * (dt * 0.6f)
         if (abs(gustTarget - gust) < dp(2f)) gustTarget *= 0.98f
 
-        // Lightning on its own only when the sound service isn't driving it.
-        if (!FocusSound.active) {
-            nextFlash -= dt
-            if (nextFlash <= 0) { strike(0.6f + rnd.nextFloat() * 0.4f); nextFlash = 25f + rnd.nextFloat() * 40f }
-        }
+        // Lightning now and then.
+        nextFlash -= dt
+        if (nextFlash <= 0) { strike(0.6f + rnd.nextFloat() * 0.4f); nextFlash = 25f + rnd.nextFloat() * 40f }
         if (flashT >= 0) { flashT += dt; if (flashT > 1.2f) flashT = -1f }
 
         val wind = wind()

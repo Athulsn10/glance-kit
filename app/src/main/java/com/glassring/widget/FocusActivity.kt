@@ -43,26 +43,10 @@ object FocusUi {
                 setOnClickListener {
                     Ambient.setKind(c, k)
                     haptics.tick(0.5f)
-                    FocusSound.update(c)
                     changed()
                 }
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, Ui.dp(c, 36)).apply { if (i > 0) marginStart = Ui.dp(c, 8) })
         }
-        // Sound on/off at the end of the row.
-        val soundOn = FocusSound.enabled(c)
-        row.addView(android.widget.ImageView(c).apply {
-            setImageResource(if (soundOn) R.drawable.ic_sound_on else R.drawable.ic_sound_off)
-            contentDescription = if (soundOn) "Sound on" else "Sound off"
-            val pad = Ui.dp(c, 8)
-            setPadding(pad, pad, pad, pad)
-            imageTintList = android.content.res.ColorStateList.valueOf(if (soundOn) Ui.BG else Ui.WHITE)
-            background = Ui.rounded(if (soundOn) Config.ACCENT else 0xFF1E1E1E.toInt(), Ui.dp(c, 18).toFloat())
-            setOnClickListener {
-                FocusSound.setEnabled(c, !soundOn)
-                haptics.tick(0.5f)
-                changed()
-            }
-        }, LinearLayout.LayoutParams(Ui.dp(c, 48), Ui.dp(c, 36)).apply { marginStart = Ui.dp(c, 8) })
         return android.widget.HorizontalScrollView(c).apply {
             isHorizontalScrollBarEnabled = false
             addView(row)
