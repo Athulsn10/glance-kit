@@ -11,7 +11,8 @@ object Store {
     const val PAGE_BATTERY = 2
     const val PAGE_DATA = 3
     const val PAGE_FOCUS = 4
-    const val PAGE_COUNT = 5
+    const val PAGE_INSTRUMENTS = 5
+    const val PAGE_COUNT = 6
 
     fun prefs(c: Context): SharedPreferences = c.getSharedPreferences("glass_ring", Context.MODE_PRIVATE)
 

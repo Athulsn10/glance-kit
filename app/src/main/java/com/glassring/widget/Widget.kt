@@ -33,7 +33,7 @@ private const val RING_DP = 76f
 private const val CHART_W_DP = 320f
 private const val CHART_H_DP = 44f
 
-private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4)
+private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5)
 private val AXIS4 = intArrayOf(R.id.a40, R.id.a41, R.id.a42, R.id.a43, R.id.a44)
 private val AXIS7 = intArrayOf(R.id.a70, R.id.a71, R.id.a72, R.id.a73, R.id.a74, R.id.a75, R.id.a76)
 
@@ -157,6 +157,7 @@ object Views {
         rv.addView(R.id.flipper, batteryPage(c, s))
         rv.addView(R.id.flipper, dataPage(c, s))
         rv.addView(R.id.flipper, focusPage(c, s))
+        rv.addView(R.id.flipper, instrumentsPage(c, s))
         val page = Store.page(c)
         rv.setDisplayedChild(R.id.flipper, page)
         header(rv, page, titleFor(s, page))
@@ -176,6 +177,7 @@ object Views {
     }
 
     fun titleFor(s: Snapshot, page: Int): String = when (page) {
+        Store.PAGE_INSTRUMENTS -> INSTRUMENTS_TITLE
         Store.PAGE_STEPS -> if (s.stepsWeek) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
         Store.PAGE_BATTERY -> batteryTitle(s.battery)
         Store.PAGE_DATA -> if (s.dataWeek) "DATA · LAST 7 DAYS" else "DATA · TODAY"
@@ -185,6 +187,7 @@ object Views {
 
     /** Cheap version for page switches: reads only what the title needs. */
     fun titleFor(c: Context, page: Int): String = when (page) {
+        Store.PAGE_INSTRUMENTS -> INSTRUMENTS_TITLE
         Store.PAGE_STEPS -> if (Store.stepsWeek(c)) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
         Store.PAGE_BATTERY -> batteryTitle(Collect.battery(c))
         Store.PAGE_DATA -> if (Store.dataWeek(c)) "DATA · LAST 7 DAYS" else "DATA · TODAY"
@@ -305,6 +308,60 @@ object Views {
             "${st.streak}", if (st.streak == 1) "DAY STREAK" else "DAYS STREAK",
         )
         ringClick(c, rv)
+        return rv
+    }
+
+    private const val INSTRUMENTS_TITLE = "INSTRUMENTS"
+
+    /** Barometer on the widget; tapping anywhere on the page opens the live compass and level. */
+    private fun instrumentsPage(c: Context, s: Snapshot): RemoteViews {
+        val b = s.baro
+        val rv = RemoteViews(c.packageName, R.layout.page_main)
+        val hpa = b.hpa
+        // Gauge from 970 to 1050 hPa, with a tick at standard sea-level pressure.
+        val frac = if (hpa != null) ((hpa - 970f) / 80f).coerceIn(0f, 1f) else 0f
+        rv.setImageViewBitmap(
+            R.id.ring,
+            RingRenderer.ring(
+                c, RING_DP,
+                if (hpa != null) listOf(RingRenderer.Arc(0f, frac, WHITE)) else emptyList(),
+                markers = listOf((1013.25f - 970f) / 80f),
+            ),
+        )
+        rv.setTextViewText(R.id.ring_value, if (hpa != null) number("${hpa.toInt()}", "") else "–")
+        rv.setTextViewText(R.id.ring_caption, "hPa")
+        when {
+            !b.available -> {
+                rv.setTextViewText(R.id.headline, "No barometer")
+                rv.setTextViewText(R.id.sub, "Tap for compass and level")
+            }
+            hpa == null -> {
+                rv.setTextViewText(R.id.headline, "Measuring…")
+                rv.setTextViewText(R.id.sub, "Tap for compass and level")
+            }
+            else -> {
+                rv.setTextViewText(R.id.headline, b.trend)
+                rv.setTextViewText(R.id.sub, b.hint)
+            }
+        }
+        stats(
+            rv,
+            b.altitudeM?.let { "≈${it} m" } ?: "–", "ALTITUDE",
+            b.change3h?.let { String.format(Locale.ENGLISH, "%+.1f", it) } ?: "–", "3H CHANGE",
+        )
+        val nowMin = System.currentTimeMillis() / 60_000L
+        val firstMin = b.history.firstOrNull()?.minute ?: nowMin
+        val span = (nowMin - firstMin).coerceIn(60L, 24 * 60L)
+        chart(rv, RingRenderer.pressureHistory(c, CHART_W_DP, CHART_H_DP, b.history, span))
+        axis4(rv, ago(span) + " AGO", ago(span * 3 / 4), ago(span / 2), ago(span / 4), "NOW")
+
+        val open = PendingIntent.getActivity(
+            c, 60,
+            Intent(c, InstrumentsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        rv.setOnClickPendingIntent(R.id.page_root, open)
+        rv.setOnClickPendingIntent(R.id.ring_box, open)
         return rv
     }
 

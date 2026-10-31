@@ -87,6 +87,7 @@ data class Snapshot(
     val batteryHistory: List<Sampler.BattPoint>,
     val steps: StepsInfo,
     val stepsWeek: Boolean,
+    val baro: BaroInfo,
 )
 
 /** Reads everything the widget shows, straight from the phone. No accounts, no internet. */
@@ -96,6 +97,7 @@ object Collect {
         val battery = battery(c)
         Sampler.sample(c, battery)
         StepCounter.sample(c)
+        Barometer.sample(c)
         return Snapshot(
             page = Store.page(c),
             time = time(c),
@@ -107,6 +109,7 @@ object Collect {
             batteryHistory = Sampler.history(c),
             steps = StepCounter.info(c),
             stepsWeek = Store.stepsWeek(c),
+            baro = Barometer.info(c),
         )
     }
 

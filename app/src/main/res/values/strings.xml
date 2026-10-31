@@ -2,5 +2,8 @@
 <resources>
     <string name="app_name">Glance Kit</string>
     <string name="widget_glass_ring">Glass Ring</string>
-    <string name="widget_description">Day, battery health, data used and focus timer, with charts.</string>
+    <string name="widget_description">Day, steps, battery health, data, focus and pressure, with charts.</string>
+    <string name="sc_compass">Compass</string>
+    <string name="sc_level">Level</string>
+    <string name="sc_baro">Barometer</string>
 </resources>

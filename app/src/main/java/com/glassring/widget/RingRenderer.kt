@@ -308,6 +308,67 @@ object RingRenderer {
         return bmp
     }
 
+    /**
+     * Air pressure over a time window. The vertical range fits the data (at least 4 hPa tall) so
+     * small, meaningful changes are visible. Faint lines mark whole hPa steps of 2.
+     */
+    fun pressureHistory(c: Context, widthDp: Float, heightDp: Float, pts: List<Barometer.Point>, spanMinutes: Long): Bitmap {
+        val (bmp, s) = newBitmap(c, widthDp, heightDp, 2f)
+        val w = bmp.width.toFloat()
+        val h = bmp.height.toFloat()
+        val cv = Canvas(bmp)
+        val dot = 4f * s
+        val now = System.currentTimeMillis() / 60_000L
+        val start = now - spanMinutes
+        val shown = pts.filter { it.minute >= start }
+        val grid = Paint().apply { color = GRID; strokeWidth = 1f * s }
+        if (shown.isEmpty()) {
+            cv.drawLine(0f, h / 2f, w, h / 2f, grid)
+            return bmp
+        }
+        var lo = shown.minOf { it.hpa }
+        var hi = shown.maxOf { it.hpa }
+        val mid = (lo + hi) / 2f
+        if (hi - lo < 4f) { lo = mid - 2f; hi = mid + 2f }
+        val top = dot + 1f * s
+        val bottom = h - dot - 1f * s
+        fun y(v: Float) = bottom - (bottom - top) * (v - lo) / (hi - lo)
+        val left = 1f * s
+        val right = w - dot - 1f * s
+        fun x(m: Long) = left + ((m - start).toFloat() / spanMinutes).coerceIn(0f, 1f) * (right - left)
+
+        var g = kotlin.math.ceil(lo / 2f) * 2f
+        while (g <= hi) {
+            cv.drawLine(0f, y(g), w, y(g), grid)
+            g += 2f
+        }
+        if (shown.size == 1) {
+            cv.drawCircle(x(shown[0].minute), y(shown[0].hpa), dot, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = WHITE })
+            return bmp
+        }
+        val fill = Path().apply {
+            moveTo(x(shown.first().minute), bottom)
+            for (pt in shown) lineTo(x(pt.minute), y(pt.hpa))
+            lineTo(x(shown.last().minute), bottom)
+            close()
+        }
+        cv.drawPath(fill, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF1C1C1C.toInt() })
+        val line = Path().apply {
+            moveTo(x(shown.first().minute), y(shown.first().hpa))
+            for (pt in shown.drop(1)) lineTo(x(pt.minute), y(pt.hpa))
+        }
+        cv.drawPath(line, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2.2f * s
+            strokeJoin = Paint.Join.ROUND
+            strokeCap = Paint.Cap.ROUND
+            color = WHITE
+        })
+        val last = shown.last()
+        cv.drawCircle(x(last.minute), y(last.hpa), dot, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Config.ACCENT })
+        return bmp
+    }
+
     private fun point(cx: Float, cy: Float, r: Float, frac: Float): Pair<Float, Float> {
         val a = frac * 2 * PI
         return (cx + r * sin(a)).toFloat() to (cy - r * cos(a)).toFloat()

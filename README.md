@@ -8,7 +8,7 @@ Every widget reads its data directly from the device. No accounts, no sign-in, n
 
 | Widget | Size | What it shows |
 |---|---|---|
-| **Glass Ring** | 4×2, resizable | Day progress, steps, battery health, data used and a focus timer, with charts, on five pages |
+| **Glass Ring** | 4×2, resizable | Day progress, steps, battery health, data used, a focus timer and air pressure, with charts, on six pages |
 
 More widgets will be added over time.
 
@@ -21,9 +21,17 @@ More widgets will be added over time.
 | Battery | Level, charging speed, time to charge limit, estimated health, cycle count, temperature, 24-hour level chart | Refresh |
 | Data | Mobile and Wi-Fi data used, with an hourly chart | Switch between today and the last 7 days |
 | Focus | Countdown timer, time focused today, streak, 7-day chart | Start, pause or resume |
+| Instruments | Air pressure, trend and weather hint, altitude, 3-hour change, pressure chart | Open the live compass, level and barometer |
 
 Use the arrow buttons in the widget's header to change page, or tap a dot to jump to one. Pages switch
 instantly with a short fade. While the phone is charging, the widget updates every minute.
+
+### Live instruments
+
+Tap the Instruments page, or long-press the Glance Kit icon, to open a full-screen **compass**,
+**spirit level** and **barometer**. They update in real time. The sensors run only while that
+screen is open, so they use no battery otherwise. The level works flat on a surface (bullseye) or
+on its edge (tube), and the phone gives a short buzz when it's level.
 
 ## Requirements
 
@@ -86,6 +94,9 @@ app/src/main/java/com/glassring/widget/
 ├── Collect.kt        Reads time, battery and data usage from the device
 ├── Sampler.kt        Records history for the charts and the health estimate
 ├── StepCounter.kt    Daily steps from the phone's step counter
+├── Barometer.kt      Air pressure sampling, trend and history
+├── SensorReader.kt   One-shot sensor readings for the widget
+├── InstrumentsActivity.kt  Live compass, spirit level and barometer
 ├── RingRenderer.kt   Draws the rings and charts as bitmaps
 ├── Focus.kt          Focus timer, background refresh and live charging updates
 ├── Store.kt          Saved state (current page, timer, streak)

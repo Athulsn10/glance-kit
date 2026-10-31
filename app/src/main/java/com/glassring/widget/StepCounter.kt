@@ -4,15 +4,9 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.os.Handler
-import android.os.HandlerThread
 import java.time.LocalDate
 import java.time.LocalTime
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 data class StepsInfo(
     val available: Boolean,   // phone has a step counter
@@ -39,8 +33,6 @@ object StepCounter {
     private const val K_DAY = "steps_day"
     private const val K_HOURLY = "steps_hourly"
     const val K_DAILY = "steps_daily"
-
-    private val thread: HandlerThread by lazy { HandlerThread("steps").apply { start() } }
 
     fun available(c: Context): Boolean =
         c.getSystemService(SensorManager::class.java)?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null
@@ -99,32 +91,9 @@ object StepCounter {
         return StepsInfo(ok, allowed, week[6], hourly, week, goal, streak)
     }
 
-    /** Registers for a moment, takes the first reading, unregisters. Returns null if none arrives. */
-    private fun readCounter(c: Context): Long? {
-        val sm = c.getSystemService(SensorManager::class.java) ?: return null
-        val sensor = sm.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) ?: return null
-        val latch = CountDownLatch(1)
-        var value: Long? = null
-        val listener = object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent) {
-                if (value == null) {
-                    value = event.values[0].toLong()
-                    latch.countDown()
-                }
-            }
-
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
-        }
-        return try {
-            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_NORMAL, Handler(thread.looper))
-            latch.await(2, TimeUnit.SECONDS)
-            value
-        } catch (e: Exception) {
-            null
-        } finally {
-            sm.unregisterListener(listener)
-        }
-    }
+    /** One quick reading of the counter's running total. */
+    private fun readCounter(c: Context): Long? =
+        SensorReader.readOnce(c, Sensor.TYPE_STEP_COUNTER)?.getOrNull(0)?.toLong()
 
     private fun parse(s: String?): LongArray {
         val out = LongArray(24)

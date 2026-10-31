@@ -92,6 +92,9 @@ class MainActivity : Activity() {
 
         stepsButton = button("Allow step counting", primary = false) { askForSteps() }
         col.addView(stepsButton)
+        col.addView(button("Open compass & level", primary = false) {
+            startActivity(Intent(this, InstrumentsActivity::class.java))
+        })
 
         col.addView(text("", 8f, grey, bottom = 24))
         col.addView(text("OPTIONAL · FULL-DAY DATA", 12f, faint, mono = true))

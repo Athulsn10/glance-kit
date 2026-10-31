@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_compass"
+        android:shortcutId="compass"
+        android:shortcutShortLabel="@string/sc_compass">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.glassring.widget.InstrumentsActivity"
+            android:targetPackage="com.glassring.widget">
+            <extra android:name="tab" android:value="compass" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_level"
+        android:shortcutId="level"
+        android:shortcutShortLabel="@string/sc_level">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.glassring.widget.InstrumentsActivity"
+            android:targetPackage="com.glassring.widget">
+            <extra android:name="tab" android:value="level" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_sc_baro"
+        android:shortcutId="barometer"
+        android:shortcutShortLabel="@string/sc_baro">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.glassring.widget.InstrumentsActivity"
+            android:targetPackage="com.glassring.widget">
+            <extra android:name="tab" android:value="barometer" />
+        </intent>
+    </shortcut>
+</shortcuts>
