@@ -1,6 +1,6 @@
 # Glance Kit
 
-A collection of minimal, glass-style home screen widgets for Android, built with
+A collection of minimal home screen widgets for Android, built with
 [Jetpack Glance](https://developer.android.com/develop/ui/compose/glance).
 
 Every widget reads its data directly from the device. No accounts, no sign-in, no internet access.
@@ -9,7 +9,7 @@ Every widget reads its data directly from the device. No accounts, no sign-in, n
 
 | Widget | Size | What it shows |
 |---|---|---|
-| **Glass Ring** | 4×2, resizable | Day progress, battery health, data used today and a focus timer, on four tap-through pages |
+| **Glass Ring** | 4×2, resizable | Day progress, battery health, data used and a focus timer, with charts, on four pages |
 
 More widgets will be added over time.
 
@@ -18,16 +18,17 @@ More widgets will be added over time.
 | Page | Shows | Tap the ring to |
 |---|---|---|
 | Time | Progress through the day with sunrise and sunset markers | Switch between day, week, month and year |
-| Battery | Charge level, charging speed, time to charge limit, cycle count, temperature, thermal status | Refresh |
-| Data | Mobile and Wi-Fi data used since midnight, with an hourly chart | Refresh |
-| Focus | Countdown timer, time focused today and daily streak | Start, pause or resume |
+| Battery | Level, charging speed, time to charge limit, estimated health, cycle count, temperature, 24-hour level chart | Switch between the chart and stats |
+| Data | Mobile and Wi-Fi data used, with an hourly chart | Switch between today and the last 7 days |
+| Focus | Countdown timer, time focused today, streak, 7-day chart | Start, pause or resume |
 
-Tap the text side of the widget to go to the next page, or tap a dot to jump to a page.
+Use the arrow buttons at the bottom of the widget to change page, or tap a dot to jump to one.
+While the phone is charging, the widget updates every minute.
 
 ## Requirements
 
 - Android 12 (API 31) or later
-- **Usage access** permission, for the data page only. The app asks for it on first launch.
+- No permissions are required. **Usage access** is optional: with it, the data page counts the whole day instead of from install time.
 
 ## Install
 
@@ -38,6 +39,7 @@ Each push to `main` builds the app and publishes it as the latest release:
 **[Download GlanceKit.apk](https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk)**
 
 Open the file on your phone to install it. Android will ask you to allow installs from your browser or file manager.
+New builds install over the previous one.
 
 ### Build from source
 
@@ -54,9 +56,12 @@ The APK is written to `app/build/outputs/apk/debug/app-debug.apk`. To install it
 
 ## Setup after installing
 
-1. Open **Glance Kit**.
-2. Tap **Allow data usage access** and turn it on for Glance Kit.
-3. Tap **Add widget to home screen**, or long-press your home screen and choose **Widgets > Glance Kit**.
+1. Open **Glance Kit** and tap **Add widget to home screen**, or long-press your home screen and choose **Widgets > Glance Kit**.
+2. Optional: tap **Usage access** and turn it on for Glance Kit.
+
+If Android says **"App was denied access"**, it's blocking a restricted setting because the app wasn't
+installed from the Play Store. Open **Settings > Apps > Glance Kit**, tap **⋮** in the top corner,
+choose **Allow restricted settings**, then turn on Usage access again.
 
 ## Configuration
 
@@ -68,6 +73,7 @@ Settings live in [`Config.kt`](app/src/main/java/com/glassring/widget/Config.kt)
 | `ACCENT` | Accent colour (ARGB) | `#FF6A3D` |
 | `FOCUS_MINUTES` | Length of a focus session | 25 |
 | `CHARGE_LIMIT` | Charge limit marked on the battery ring. Set to 100 if you don't limit charging. | 80 |
+| `DESIGN_CAPACITY_MAH` | Battery capacity when new, used for the health estimate if the phone doesn't report it | 4575 (Pixel 8) |
 
 ## Project structure
 
@@ -75,8 +81,9 @@ Settings live in [`Config.kt`](app/src/main/java/com/glassring/widget/Config.kt)
 app/src/main/java/com/glassring/widget/
 ├── RingWidget.kt     Widget layout, pages and tap actions
 ├── Collect.kt        Reads time, battery and data usage from the device
+├── Sampler.kt        Records history for the charts and the health estimate
 ├── RingRenderer.kt   Draws the rings and charts as bitmaps
-├── Focus.kt          Focus timer and background refresh workers
+├── Focus.kt          Focus timer, background refresh and live charging updates
 ├── Store.kt          Saved state (current page, timer, streak)
 ├── Config.kt         User settings
 └── MainActivity.kt   Setup screen
@@ -84,10 +91,11 @@ app/src/main/java/com/glassring/widget/
 
 ## Known limitations
 
-- **Glass effect:** Android widgets can't blur what's behind them. The glass look is a translucent fill with a soft highlight, and works best on dark wallpapers.
+- **Battery health** is an estimate: the current full charge compared with the battery's capacity when new. Apps can't read the exact figure that Settings shows.
 - **Battery cycle count:** only shown on devices that report it to apps (Android 14 and later, and not all phones). Otherwise it shows "–".
-- **Page switching:** Android widgets don't support sideways swipes, so pages change on tap.
-- **Refresh rate:** Android limits background updates to every 15 minutes. Tapping the widget refreshes it straight away, and the focus countdown ticks every second because the system draws it.
+- **Data without usage access** is counted from when the app was installed, so the first day starts part-way through.
+- **Page switching:** Android widgets don't support sideways swipes, so pages change with the arrow buttons.
+- **Refresh rate:** on battery, Android limits background updates to every 15 minutes. While charging, the widget updates every minute. Tapping it always refreshes straight away.
 
 ## Adding a widget
 

@@ -12,14 +12,28 @@ android {
         applicationId = "com.glassring.widget"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        // Each GitHub build gets a higher number, so phones accept it as an update.
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = "1.1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        // A fixed key kept in the repo, so every build can install over the last one.
+        // Fine for a personal app; use a private key before publishing to a store.
+        getByName("debug") {
+            storeFile = file("glancekit.keystore")
+            storePassword = "glancekit"
+            keyAlias = "glancekit"
+            keyPassword = "glancekit"
+        }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
-            // Signed with the debug key so "Build APK" gives a file you can install directly.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

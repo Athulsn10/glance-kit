@@ -24,8 +24,16 @@ jobs:
       - name: Build the APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          set -o pipefail
+          ./gradlew assembleDebug --console=plain 2>&1 | tee build.log
           cp app/build/outputs/apk/debug/app-debug.apk GlanceKit.apk
+
+      # On failure, surface the compiler errors as an annotation on the run.
+      - name: Report build errors
+        if: failure()
+        run: |
+          msg=$(grep -E "^e: |error:|What went wrong|AAPT|Unresolved|Execution failed" -A2 build.log | head -60 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          echo "::error title=Build failed::${msg}"
 
       - uses: actions/upload-artifact@v4
         with:

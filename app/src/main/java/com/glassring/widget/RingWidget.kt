@@ -1,13 +1,11 @@
 package com.glassring.widget
 
 import android.content.Context
-import android.content.Intent
 import android.os.SystemClock
-import android.provider.Settings
 import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
@@ -17,9 +15,8 @@ import androidx.glance.GlanceModifier
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
-import androidx.glance.LocalSize
+import androidx.glance.action.Action
 import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.AndroidRemoteViews
 import androidx.glance.appwidget.GlanceAppWidget
@@ -28,7 +25,6 @@ import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
-import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.state.updateAppWidgetState
@@ -37,10 +33,11 @@ import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
+import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
@@ -52,18 +49,24 @@ import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 
 private val TICK = longPreferencesKey("tick")
-private val PAGE_PARAM = ActionParameters.Key<Int>("page")
 
 private val White = Color(0xFFFFFFFF)
-private val Soft = Color(0xB3FFFFFF)
-private val Faint = Color(0x99FFFFFF)
-private val ChipBg = Color(0x14FFFFFF)
+private val Soft = Color(0xFFB3B3B3)
+private val Faint = Color(0xFF8A8A8A)
+private val Chip = Color(0xFF1F1F1F)
+private val NavBg = Color(0xFF242424)
+private val Dot = Color(0xFF4A4A4A)
+
+private const val RING_DP = 96f
+private const val CHART_W_DP = 200f
 
 /** Redraws every copy of the widget with fresh data. */
 suspend fun refreshAll(c: Context) {
     val manager = GlanceAppWidgetManager(c)
+    val ids = manager.getGlanceIds(RingWidget::class.java)
+    if (ids.isEmpty()) return
     val widget = RingWidget()
-    for (id in manager.getGlanceIds(RingWidget::class.java)) {
+    for (id in ids) {
         updateAppWidgetState(c, id) { it[TICK] = System.currentTimeMillis() }
         widget.update(c, id)
     }
@@ -79,14 +82,16 @@ class RingWidgetReceiver : GlanceAppWidgetReceiver() {
 }
 
 class RingWidget : GlanceAppWidget() {
-    override val sizeMode: SizeMode = SizeMode.Exact
+    // One layout for every size: renders once per update instead of once per size.
+    override val sizeMode: SizeMode = SizeMode.Single
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
-            // Reading the tick makes the widget redraw whenever refreshAll() runs.
-            currentState<Preferences>()[TICK]
+            val tick = currentState<Preferences>()[TICK] ?: 0L
             val c = LocalContext.current
-            Content(Collect.snapshot(c))
+            // Collect once per refresh, not on every recomposition.
+            val s = remember(tick) { Collect.snapshot(c) }
+            Content(s)
         }
     }
 }
@@ -97,86 +102,110 @@ class RingWidget : GlanceAppWidget() {
 
 @Composable
 private fun Content(s: Snapshot) {
-    val size: DpSize = LocalSize.current
-    val ringDp = minOf(size.height.value - 30f, size.width.value * 0.42f).coerceIn(72f, 150f)
-
-    Box(
+    Column(
         modifier = GlanceModifier
             .fillMaxSize()
+            .background(ImageProvider(R.drawable.widget_bg))
             .cornerRadius(28.dp)
-            .background(ImageProvider(R.drawable.glass_bg)),
-        contentAlignment = Alignment.BottomCenter,
+            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
     ) {
         Row(
-            modifier = GlanceModifier.fillMaxSize().padding(start = 14.dp, end = 16.dp, top = 10.dp, bottom = 18.dp),
+            modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RingArea(s, ringDp)
+            RingArea(s)
             Spacer(GlanceModifier.width(14.dp))
-            // Tapping the text side slides to the next page.
             Column(
-                modifier = GlanceModifier
-                    .defaultWeight()
-                    .fillMaxHeight()
-                    .clickable(actionRunCallback<NextPageAction>()),
+                modifier = GlanceModifier.defaultWeight(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 when (s.page) {
-                    Store.PAGE_BATTERY -> BatteryText(s.battery)
-                    Store.PAGE_DATA -> DataText(s.data, size.width.value - ringDp - 60f)
+                    Store.PAGE_BATTERY -> BatteryText(s)
+                    Store.PAGE_DATA -> DataText(s)
                     Store.PAGE_FOCUS -> FocusText(s.focus)
                     else -> TimeText(s)
                 }
             }
         }
-        PageDots(s.page)
+        NavBar(s.page)
     }
 }
 
+/** ‹  • ▬ • •  › — big arrow buttons on both ends, dots in the middle (tap to jump). */
 @Composable
-private fun PageDots(page: Int) {
+private fun NavBar(page: Int) {
     Row(
-        modifier = GlanceModifier.padding(bottom = 2.dp),
+        modifier = GlanceModifier.fillMaxWidth().height(40.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        NavButton(R.drawable.ic_chevron_left, "Previous page", actionRunCallback<PrevPageAction>())
+        Spacer(GlanceModifier.defaultWeight())
         for (i in 0 until Store.PAGE_COUNT) {
-            // Each dot has a bigger invisible tap area so it's easy to hit.
             Box(
                 modifier = GlanceModifier
-                    .padding(horizontal = 4.dp, vertical = 6.dp)
-                    .clickable(actionRunCallback<GoToPageAction>(actionParametersOf(PAGE_PARAM to i))),
+                    .padding(horizontal = 3.dp, vertical = 10.dp)
+                    .clickable(goTo(i)),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
                     modifier = GlanceModifier
-                        .width(if (i == page) 14.dp else 4.dp)
-                        .height(4.dp)
-                        .cornerRadius(2.dp)
-                        .background(if (i == page) White else Color(0x4DFFFFFF)),
+                        .width(if (i == page) 18.dp else 6.dp)
+                        .height(6.dp)
+                        .cornerRadius(3.dp)
+                        .background(if (i == page) White else Dot),
                 ) {}
             }
         }
+        Spacer(GlanceModifier.defaultWeight())
+        NavButton(R.drawable.ic_chevron_right, "Next page", actionRunCallback<NextPageAction>())
+    }
+}
+
+private fun goTo(i: Int): Action = when (i) {
+    Store.PAGE_BATTERY -> actionRunCallback<GoBatteryAction>()
+    Store.PAGE_DATA -> actionRunCallback<GoDataAction>()
+    Store.PAGE_FOCUS -> actionRunCallback<GoFocusAction>()
+    else -> actionRunCallback<GoTimeAction>()
+}
+
+@Composable
+private fun NavButton(icon: Int, description: String, onClick: Action) {
+    Box(
+        modifier = GlanceModifier
+            .size(40.dp)
+            .cornerRadius(20.dp)
+            .background(NavBg)
+            .clickable(onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            provider = ImageProvider(icon),
+            contentDescription = description,
+            modifier = GlanceModifier.size(20.dp),
+        )
     }
 }
 
 @Composable
-private fun RingArea(s: Snapshot, ringDp: Float) {
+private fun RingArea(s: Snapshot) {
     val c = LocalContext.current
     val ring = when (s.page) {
         Store.PAGE_BATTERY -> RingRenderer.ring(
-            c, ringDp,
-            listOf(RingRenderer.Arc(0f, s.battery.level / 100f, 0xFFFFFFFF.toInt(), true)),
+            c, RING_DP,
+            listOf(RingRenderer.Arc(0f, s.battery.level / 100f, if (s.battery.plugged) Config.ACCENT else RingRenderer.WHITE)),
             markers = if (s.battery.target < 100) listOf(s.battery.target / 100f) else emptyList(),
         )
         Store.PAGE_DATA -> {
-            val total = (s.data.mobileBytes + s.data.wifiBytes).coerceAtLeast(1)
-            val m = if (s.data.hasAccess) s.data.mobileBytes.toFloat() / total else 0f
-            val gap = 0.02f
+            val m = if (s.dataWeek) s.data.weekMobile.sum() else s.data.mobileBytes
+            val w = if (s.dataWeek) s.data.weekWifi.sum() else s.data.wifiBytes
+            val total = (m + w).coerceAtLeast(1)
+            val mf = m.toFloat() / total
+            val gap = if (m > 0 && w > 0) 0.025f else 0f
             RingRenderer.ring(
-                c, ringDp,
+                c, RING_DP,
                 listOf(
-                    RingRenderer.Arc(0f, (m - gap).coerceAtLeast(0f), Config.ACCENT, true),
-                    RingRenderer.Arc(m, (1f - m - gap).coerceAtLeast(0f), 0xD9FFFFFF.toInt(), false),
+                    RingRenderer.Arc(0f, (mf - gap).coerceAtLeast(0f), Config.ACCENT),
+                    RingRenderer.Arc(mf, (1f - mf - gap).coerceAtLeast(0f), RingRenderer.WHITE),
                 ),
                 head = false,
             )
@@ -185,22 +214,22 @@ private fun RingArea(s: Snapshot, ringDp: Float) {
             val f = s.focus
             val frac = if (f.left > 0 && f.length > 0) f.left.toFloat() / f.length else 0f
             RingRenderer.ring(
-                c, ringDp,
-                listOf(RingRenderer.Arc(0f, frac, Config.ACCENT, true)),
+                c, RING_DP,
+                listOf(RingRenderer.Arc(0f, frac, Config.ACCENT)),
                 head = frac > 0f,
                 dottedTrack = true,
             )
         }
         else -> RingRenderer.ring(
-            c, ringDp,
-            listOf(RingRenderer.Arc(0f, s.time.fraction, 0xFFFFFFFF.toInt(), true)),
+            c, RING_DP,
+            listOf(RingRenderer.Arc(0f, s.time.fraction, RingRenderer.WHITE)),
             markers = listOfNotNull(s.time.sunrise, s.time.sunset),
         )
     }
 
     Box(
         modifier = GlanceModifier
-            .size(ringDp.dp)
+            .size(RING_DP.dp)
             .clickable(actionRunCallback<RingTapAction>()),
         contentAlignment = Alignment.Center,
     ) {
@@ -212,21 +241,18 @@ private fun RingArea(s: Snapshot, ringDp: Float) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             when (s.page) {
                 Store.PAGE_BATTERY -> {
-                    BigNumber("${s.battery.level}", "%", ringDp)
-                    Caption(if (s.battery.charging) "CHARGING" else if (s.battery.plugged) "HELD" else "BATTERY")
+                    BigNumber("${s.battery.level}", "%")
+                    Caption(if (s.battery.charging) "CHARGING" else if (s.battery.plugged) "PLUGGED" else "BATTERY")
                 }
                 Store.PAGE_DATA -> {
-                    if (s.data.hasAccess) {
-                        val parts = Collect.fmtBytes(s.data.mobileBytes).split(" ")
-                        BigNumber(parts[0], parts.getOrElse(1) { "" }, ringDp * 0.9f)
-                        Caption("MOBILE")
-                    } else {
-                        Caption("TAP TEXT")
-                    }
+                    val m = if (s.dataWeek) s.data.weekMobile.sum() else s.data.mobileBytes
+                    val parts = Collect.fmtBytes(m).split(" ")
+                    BigNumber(parts[0], parts.getOrElse(1) { "" }, small = true)
+                    Caption("MOBILE")
                 }
-                Store.PAGE_FOCUS -> FocusCountdown(s.focus, ringDp)
+                Store.PAGE_FOCUS -> FocusCountdown(s.focus)
                 else -> {
-                    BigNumber("${(s.time.fraction * 100).toInt()}", "%", ringDp)
+                    BigNumber("${(s.time.fraction * 100).toInt()}", "%")
                     Caption(s.time.caption)
                 }
             }
@@ -235,14 +261,14 @@ private fun RingArea(s: Snapshot, ringDp: Float) {
 }
 
 private fun ringDescription(s: Snapshot): String = when (s.page) {
-    Store.PAGE_BATTERY -> "Battery ${s.battery.level} percent"
-    Store.PAGE_DATA -> "Mobile data today ${Collect.fmtBytes(s.data.mobileBytes)}"
-    Store.PAGE_FOCUS -> "Focus timer"
-    else -> "${(s.time.fraction * 100).toInt()} percent ${s.time.caption.lowercase()}"
+    Store.PAGE_BATTERY -> "Battery ${s.battery.level} percent. Tap to switch chart and stats."
+    Store.PAGE_DATA -> "Mobile data ${Collect.fmtBytes(s.data.mobileBytes)}. Tap to switch today and week."
+    Store.PAGE_FOCUS -> "Focus timer. Tap to start or pause."
+    else -> "${(s.time.fraction * 100).toInt()} percent ${s.time.caption.lowercase()}. Tap to change period."
 }
 
 @Composable
-private fun FocusCountdown(f: FocusInfo, ringDp: Float) {
+private fun FocusCountdown(f: FocusInfo) {
     val c = LocalContext.current
     when {
         f.running -> {
@@ -254,11 +280,11 @@ private fun FocusCountdown(f: FocusInfo, ringDp: Float) {
             Caption("TAP TO PAUSE")
         }
         f.paused -> {
-            Text(mmss(f.left), style = mono((ringDp * 0.15f).coerceIn(14f, 24f), White))
-            Caption("PAUSED · TAP")
+            Text(mmss(f.left), style = mono(18f, White))
+            Caption("PAUSED")
         }
         else -> {
-            Text(mmss(Config.FOCUS_MINUTES * 60_000L), style = mono((ringDp * 0.15f).coerceIn(14f, 24f), White))
+            Text(mmss(Config.FOCUS_MINUTES * 60_000L), style = mono(18f, White))
             Caption("TAP TO START")
         }
     }
@@ -270,7 +296,7 @@ private fun mmss(ms: Long): String {
 }
 
 // ---------------------------------------------------------------------------
-// Right-hand text for each page
+// Right-hand side of each page
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -278,79 +304,93 @@ private fun TimeText(s: Snapshot) {
     Label(s.time.label)
     Headline(s.time.headline)
     Sub(s.time.sub)
-    Spacer(GlanceModifier.height(6.dp))
-    val parts = mutableListOf("${s.battery.level}%" + if (s.battery.charging) " charging" else "")
-    if (s.data.hasAccess) parts += "${Collect.fmtBytes(s.data.mobileBytes)} today"
-    Chip(parts.joinToString("  ·  "))
+    Spacer(GlanceModifier.height(8.dp))
+    Row {
+        Stat("${s.battery.level}%", if (s.battery.charging) "CHARGING" else "BATTERY")
+        Spacer(GlanceModifier.width(6.dp))
+        Stat(Collect.fmtBytes(s.data.mobileBytes), "MOBILE")
+    }
 }
 
 @Composable
-private fun BatteryText(b: BatteryInfo) {
+private fun BatteryText(s: Snapshot) {
+    val b = s.battery
     Label(
         when {
             b.charging -> "BATTERY · CHARGING"
-            b.plugged -> "BATTERY · HELD AT ${b.level}%"
-            else -> "BATTERY · ON BATTERY"
+            b.plugged -> "BATTERY · PLUGGED IN"
+            else -> "BATTERY · ${b.thermal.uppercase()}"
         },
     )
     Headline(
         when {
-            b.watts != null && b.watts >= 0.5 -> "+%.0f W".format(b.watts)
-            else -> "${b.tempC.toInt()}°C"
+            b.charging && b.watts != null && b.watts >= 0.5 -> String.format(java.util.Locale.ENGLISH, "+%.0f W", b.watts)
+            b.plugged -> "Held at ${b.level}%"
+            b.minutesLeft != null -> "~${Collect.fmtMinutes(b.minutesLeft.toLong())} left"
+            else -> "${b.level}%"
         },
     )
+    val health = b.healthPct?.let { "Health ~$it%" } ?: "Health: measuring"
     Sub(
         when {
-            b.minutesToTarget != null -> "${b.target}% in ${Collect.fmtMinutes(b.minutesToTarget.toLong())}"
-            b.charging -> "Charging to ${b.target}%"
-            else -> "Battery is ${b.thermal.lowercase()}"
+            b.minutesToTarget != null -> "${b.target}% in ${Collect.fmtMinutes(b.minutesToTarget.toLong())} · $health"
+            else -> "$health · ${b.tempC.toInt()}°C"
         },
     )
     Spacer(GlanceModifier.height(6.dp))
-    Row {
-        Stat(b.cycles?.toString() ?: "–", "CYCLES")
-        Spacer(GlanceModifier.width(6.dp))
-        Stat("${b.tempC.toInt()}°C", "TEMP")
-        Spacer(GlanceModifier.width(6.dp))
-        Stat(b.thermal, "THERMAL")
+    if (s.batteryChart) {
+        ChartImage(
+            RingRenderer.batteryHistory(LocalContext.current, CHART_W_DP, 30f, s.batteryHistory, b.target),
+            30f, "Battery level over the last 24 hours",
+        )
+        AxisLabels("24H AGO", "NOW")
+    } else {
+        Row {
+            Stat(b.healthPct?.let { "$it%" } ?: "–", "HEALTH")
+            Spacer(GlanceModifier.width(6.dp))
+            Stat(b.cycles?.toString() ?: "–", "CYCLES")
+            Spacer(GlanceModifier.width(6.dp))
+            Stat("${b.tempC.toInt()}°C", "TEMP")
+        }
     }
 }
 
 @Composable
-private fun DataText(d: DataInfo, widthDp: Float) {
-    if (!d.hasAccess) {
-        Label("DATA · NEEDS ACCESS")
-        Headline("Allow access")
-        Text(
-            "Tap here, find Glance Kit, turn on Usage access.",
-            style = TextStyle(color = ColorProvider(Soft), fontSize = 12.sp),
-            maxLines = 3,
-            modifier = GlanceModifier.clickable(
-                actionStartActivity(
-                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                ),
-            ),
-        )
-        return
-    }
-    Label("DATA · SINCE MIDNIGHT")
-    Headline("${Collect.fmtBytes(d.mobileBytes)} mobile")
-    Sub("${Collect.fmtBytes(d.wifiBytes)} on Wi-Fi")
-    Spacer(GlanceModifier.height(6.dp))
+private fun DataText(s: Snapshot) {
+    val d = s.data
     val c = LocalContext.current
-    val w = widthDp.coerceIn(80f, 260f)
-    Image(
-        provider = ImageProvider(RingRenderer.bars(c, w, 24f, d.hourlyMobile, d.hourlyWifi, d.currentHour)),
-        contentDescription = "Data used each hour today",
-        modifier = GlanceModifier.width(w.dp).height(24.dp),
-    )
+    if (s.dataWeek) {
+        Label("DATA · LAST 7 DAYS")
+        Headline(Collect.fmtBytes(d.weekMobile.sum()))
+        Sub("mobile · ${Collect.fmtBytes(d.weekWifi.sum())} Wi-Fi")
+        Spacer(GlanceModifier.height(6.dp))
+        ChartImage(
+            RingRenderer.bars(c, CHART_W_DP, 28f, d.weekMobile, d.weekWifi, highlight = 6),
+            28f, "Data used each day this week",
+        )
+        AxisLabels("7D AGO", "TODAY")
+    } else {
+        Label(if (d.accurate) "DATA · TODAY" else "DATA · TODAY (SINCE INSTALL)")
+        Headline(Collect.fmtBytes(d.mobileBytes))
+        Sub("mobile · ${Collect.fmtBytes(d.wifiBytes)} Wi-Fi")
+        Spacer(GlanceModifier.height(6.dp))
+        ChartImage(
+            RingRenderer.bars(c, CHART_W_DP, 28f, d.hourlyMobile, d.hourlyWifi, lastIndex = d.currentHour),
+            28f, "Data used each hour today",
+        )
+        AxisLabels("12 AM", "11 PM")
+    }
 }
 
 @Composable
 private fun FocusText(f: FocusInfo) {
-    Label(if (f.running || f.paused) "FOCUS · SESSION ${f.sessions + 1}" else "FOCUS")
-    Headline(Collect.fmtMinutes(f.todayMs / 60_000L))
-    Sub(if (f.streak > 1) "Focused today · ${f.streak}-day streak" else "Focused today")
+    Label(if (f.streak > 1) "FOCUS · ${f.streak}-DAY STREAK" else "FOCUS")
+    Headline("${Collect.fmtMinutes(f.todayMs / 60_000L)} today")
+    Spacer(GlanceModifier.height(4.dp))
+    ChartImage(
+        RingRenderer.bars(LocalContext.current, CHART_W_DP, 20f, f.week, null, highlight = 6, dimOthers = true),
+        20f, "Focus time each day this week",
+    )
     Spacer(GlanceModifier.height(6.dp))
     Row {
         when {
@@ -377,15 +417,34 @@ private fun mono(sizeSp: Float, color: Color) =
     TextStyle(color = ColorProvider(color), fontSize = sizeSp.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
 
 @Composable
-private fun BigNumber(value: String, unit: String, ringDp: Float) {
-    val big = (ringDp * 0.21f).coerceIn(16f, 32f)
+private fun ChartImage(bmp: android.graphics.Bitmap, heightDp: Float, description: String) {
+    Image(
+        provider = ImageProvider(bmp),
+        contentDescription = description,
+        contentScale = ContentScale.FillBounds,
+        modifier = GlanceModifier.fillMaxWidth().height(heightDp.dp),
+    )
+}
+
+@Composable
+private fun AxisLabels(left: String, right: String) {
+    Row(modifier = GlanceModifier.fillMaxWidth().padding(top = 2.dp)) {
+        Text(left, style = mono(8f, Faint), maxLines = 1)
+        Spacer(GlanceModifier.defaultWeight())
+        Text(right, style = mono(8f, Faint), maxLines = 1)
+    }
+}
+
+@Composable
+private fun BigNumber(value: String, unit: String, small: Boolean = false) {
+    val big = if (small) 20f else 26f
     Row(verticalAlignment = Alignment.Bottom) {
-        Text(value, style = TextStyle(color = ColorProvider(White), fontSize = big.sp, fontWeight = FontWeight.Medium))
+        Text(value, style = TextStyle(color = ColorProvider(White), fontSize = big.sp, fontWeight = FontWeight.Bold))
         if (unit.isNotEmpty()) {
             Text(
                 unit,
-                style = TextStyle(color = ColorProvider(Faint), fontSize = (big * 0.48f).sp),
-                modifier = GlanceModifier.padding(bottom = 3.dp),
+                style = TextStyle(color = ColorProvider(Soft), fontSize = (big * 0.5f).sp, fontWeight = FontWeight.Medium),
+                modifier = GlanceModifier.padding(start = 1.dp, bottom = 3.dp),
             )
         }
     }
@@ -405,27 +464,15 @@ private fun Label(text: String) {
 private fun Headline(text: String) {
     Text(
         text,
-        style = TextStyle(color = ColorProvider(White), fontSize = 24.sp, fontWeight = FontWeight.Medium),
+        style = TextStyle(color = ColorProvider(White), fontSize = 22.sp, fontWeight = FontWeight.Bold),
         maxLines = 1,
-        modifier = GlanceModifier.padding(top = 2.dp, bottom = 2.dp),
+        modifier = GlanceModifier.padding(top = 2.dp, bottom = 1.dp),
     )
 }
 
 @Composable
 private fun Sub(text: String) {
-    Text(text, style = TextStyle(color = ColorProvider(Soft), fontSize = 12.sp), maxLines = 2)
-}
-
-@Composable
-private fun Chip(text: String) {
-    Box(
-        modifier = GlanceModifier
-            .cornerRadius(12.dp)
-            .background(ChipBg)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-    ) {
-        Text(text, style = TextStyle(color = ColorProvider(Color(0xDBFFFFFF)), fontSize = 11.sp), maxLines = 1)
-    }
+    Text(text, style = TextStyle(color = ColorProvider(Soft), fontSize = 12.sp), maxLines = 1)
 }
 
 @Composable
@@ -433,21 +480,21 @@ private fun Stat(value: String, label: String) {
     Column(
         modifier = GlanceModifier
             .cornerRadius(10.dp)
-            .background(ChipBg)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .background(Chip)
+            .padding(horizontal = 9.dp, vertical = 5.dp),
     ) {
-        Text(value, style = TextStyle(color = ColorProvider(White), fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+        Text(value, style = TextStyle(color = ColorProvider(White), fontSize = 13.sp, fontWeight = FontWeight.Bold), maxLines = 1)
         Text(label, style = mono(7f, Faint), maxLines = 1)
     }
 }
 
 @Composable
-private fun Pill(text: String, primary: Boolean, onClick: androidx.glance.action.Action) {
+private fun Pill(text: String, primary: Boolean, onClick: Action) {
     Box(
         modifier = GlanceModifier
             .height(32.dp)
             .cornerRadius(16.dp)
-            .background(if (primary) White else Color(0x24FFFFFF))
+            .background(if (primary) White else NavBg)
             .padding(horizontal = 14.dp)
             .clickable(onClick),
         contentAlignment = Alignment.Center,
@@ -468,27 +515,49 @@ private fun Pill(text: String, primary: Boolean, onClick: androidx.glance.action
 // Taps
 // ---------------------------------------------------------------------------
 
+private suspend fun goPage(context: Context, page: Int) {
+    Store.setPage(context, page)
+    refreshAll(context)
+}
+
 class NextPageAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        Store.setPage(context, Store.page(context) + 1)
-        refreshAll(context)
-    }
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        goPage(context, Store.page(context) + 1)
 }
 
-class GoToPageAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        Store.setPage(context, parameters[PAGE_PARAM] ?: 0)
-        refreshAll(context)
-    }
+class PrevPageAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        goPage(context, Store.page(context) - 1)
 }
 
-/** Tapping the ring does something different on each page. */
+class GoTimeAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        goPage(context, Store.PAGE_TIME)
+}
+
+class GoBatteryAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        goPage(context, Store.PAGE_BATTERY)
+}
+
+class GoDataAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        goPage(context, Store.PAGE_DATA)
+}
+
+class GoFocusAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) =
+        goPage(context, Store.PAGE_FOCUS)
+}
+
+/** Tapping the ring switches the view on each page. */
 class RingTapAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         when (Store.page(context)) {
             Store.PAGE_TIME -> Store.cycleTimeMode(context)
+            Store.PAGE_BATTERY -> Store.toggleBatteryChart(context)
+            Store.PAGE_DATA -> Store.toggleDataWeek(context)
             Store.PAGE_FOCUS -> Focus.toggle(context)
-            else -> Unit // battery and data: just refresh
         }
         refreshAll(context)
     }

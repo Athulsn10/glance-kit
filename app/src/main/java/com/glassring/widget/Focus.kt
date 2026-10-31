@@ -3,6 +3,7 @@ package com.glassring.widget
 import android.content.Context
 import android.os.VibrationEffect
 import android.os.VibratorManager
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -88,7 +89,9 @@ class FocusDoneWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
 /** Keeps the widget fresh every 15 minutes (the shortest Android allows for background work). */
 class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
-        refreshAll(applicationContext)
+        val c = applicationContext
+        refreshAll(c)
+        if (!Collect.battery(c).plugged) ChargeWorker.watch(c)
         return Result.success()
     }
 
@@ -96,6 +99,46 @@ class RefreshWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
         fun schedule(c: Context) {
             val req = PeriodicWorkRequestBuilder<RefreshWorker>(15, TimeUnit.MINUTES).build()
             WorkManager.getInstance(c).enqueueUniquePeriodicWork("ring_refresh", ExistingPeriodicWorkPolicy.KEEP, req)
+            ChargeWorker.watch(c)
+        }
+    }
+}
+
+/**
+ * Live charging updates without a background service.
+ * A job waits for the phone to be plugged in (the system wakes it, no polling). While plugged in,
+ * it refreshes the widget once a minute. When unplugged, it refreshes once more and goes back to waiting.
+ */
+class ChargeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+    override suspend fun doWork(): Result {
+        val c = applicationContext
+        refreshAll(c)
+        if (Collect.battery(c).plugged) tick(c, next = if (tags.contains(TAG_A)) TICK_B else TICK_A) else watch(c)
+        return Result.success()
+    }
+
+    companion object {
+        private const val WAIT = "charge_wait"
+        private const val TICK_A = "charge_tick_a"
+        private const val TICK_B = "charge_tick_b"
+        private const val TAG_A = "tick_a"
+
+        /** Wait for the charger. Cheap: handled by the system's job scheduler. */
+        fun watch(c: Context) {
+            val req = OneTimeWorkRequestBuilder<ChargeWorker>()
+                .setConstraints(Constraints.Builder().setRequiresCharging(true).build())
+                .build()
+            WorkManager.getInstance(c).enqueueUniqueWork(WAIT, ExistingWorkPolicy.KEEP, req)
+        }
+
+        /**
+         * Next refresh in one minute. Ticks alternate between two names so a running tick never
+         * replaces itself, and there is never more than one loop.
+         */
+        private fun tick(c: Context, next: String) {
+            val b = OneTimeWorkRequestBuilder<ChargeWorker>().setInitialDelay(1, TimeUnit.MINUTES)
+            if (next == TICK_A) b.addTag(TAG_A)
+            WorkManager.getInstance(c).enqueueUniqueWork(next, ExistingWorkPolicy.REPLACE, b.build())
         }
     }
 }

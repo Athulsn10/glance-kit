@@ -10,16 +10,19 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
 import java.time.temporal.IsoFields
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.acos
+import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.tan
@@ -41,18 +44,23 @@ data class BatteryInfo(
     val charging: Boolean,
     val watts: Double?,
     val minutesToTarget: Int?,
+    val minutesLeft: Int?,      // estimated time left on battery
     val target: Int,
     val tempC: Float,
-    val cycles: Int?,      // null when the phone doesn't report it
+    val cycles: Int?,           // null when the phone doesn't report it
     val thermal: String,
+    val chargeCounterUah: Long,
+    val healthPct: Int?,        // estimated, null until enough samples
 )
 
 data class DataInfo(
-    val hasAccess: Boolean,
+    val accurate: Boolean,      // true when Usage access is on (counts the whole day)
     val mobileBytes: Long,
     val wifiBytes: Long,
     val hourlyMobile: LongArray,
     val hourlyWifi: LongArray,
+    val weekMobile: LongArray,
+    val weekWifi: LongArray,
     val currentHour: Int,
 )
 
@@ -65,6 +73,7 @@ data class FocusInfo(
     val todayMs: Long,
     val sessions: Int,
     val streak: Int,
+    val week: LongArray,
 )
 
 data class Snapshot(
@@ -73,19 +82,28 @@ data class Snapshot(
     val battery: BatteryInfo,
     val data: DataInfo,
     val focus: FocusInfo,
+    val batteryChart: Boolean,
+    val dataWeek: Boolean,
+    val batteryHistory: List<Sampler.BattPoint>,
 )
 
 /** Reads everything the widget shows, straight from the phone. No accounts, no internet. */
 object Collect {
 
-    fun snapshot(c: Context): Snapshot = Snapshot(
-        page = Store.page(c),
-        time = time(c),
-        battery = battery(c),
-        // Hour-by-hour queries are only needed when the data page is showing.
-        data = data(c, hourly = Store.page(c) == Store.PAGE_DATA),
-        focus = focus(c),
-    )
+    fun snapshot(c: Context): Snapshot {
+        val battery = battery(c)
+        Sampler.sample(c, battery)
+        return Snapshot(
+            page = Store.page(c),
+            time = time(c),
+            battery = battery,
+            data = data(c),
+            focus = focus(c),
+            batteryChart = Store.batteryChart(c),
+            dataWeek = Store.dataWeek(c),
+            batteryHistory = Sampler.history(c),
+        )
+    }
 
     // ---------------- Time ----------------
 
@@ -95,17 +113,16 @@ object Collect {
         val sod = now.toLocalTime().toSecondOfDay().toDouble()
         val dayFrac = sod / 86_400.0
         val mode = Store.timeMode(c)
-        val dow = date.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH).uppercase()
-        val mon = date.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH).uppercase()
+        val dow = date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+        val mon = date.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
 
         return when (mode) {
             1 -> {
                 val f = ((date.dayOfWeek.value - 1) + dayFrac) / 7.0
-                val left = (1 - f) * 7
                 TimeInfo(
                     mode, f.toFloat(), "OF WEEK",
                     "WEEK ${date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)} · $dow",
-                    daysLeft(left), "Resets Monday", null, null,
+                    daysLeft((1 - f) * 7), "Resets Monday", null, null,
                 )
             }
             2 -> {
@@ -113,7 +130,7 @@ object Collect {
                 val f = ((date.dayOfMonth - 1) + dayFrac) / len
                 TimeInfo(
                     mode, f.toFloat(), "OF MONTH",
-                    date.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH).uppercase(),
+                    date.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH).uppercase(),
                     daysLeft((1 - f) * len), "Day ${date.dayOfMonth} of $len", null, null,
                 )
             }
@@ -128,14 +145,15 @@ object Collect {
             }
             else -> {
                 val leftMin = ((86_400 - sod) / 60).toLong()
-                val (rise, set) = Sun.times(date, Config.LATITUDE, Config.LONGITUDE, ZoneId.systemDefault())
+                val zone = ZoneId.systemDefault()
+                val (rise, set) = Sun.times(date, Config.LATITUDE, Config.LONGITUDE, zone)
                 val nowT = now.toLocalTime()
                 val sub = when {
                     rise != null && nowT.isBefore(rise) -> "Sunrise at ${fmtClock(rise)}"
-                    set != null && nowT.isBefore(set) -> "Sunset in ${fmtMinutes(java.time.Duration.between(nowT, set).toMinutes())}"
+                    set != null && nowT.isBefore(set) -> "Sunset in ${fmtMinutes(Duration.between(nowT, set).toMinutes())}"
                     else -> {
-                        val tomorrow = Sun.times(date.plusDays(1), Config.LATITUDE, Config.LONGITUDE, ZoneId.systemDefault()).first
-                        if (tomorrow != null) "Wind down. Sunrise ${fmtClock(tomorrow)}" else "Wind down."
+                        val tomorrow = Sun.times(date.plusDays(1), Config.LATITUDE, Config.LONGITUDE, zone).first
+                        if (tomorrow != null) "Sunrise at ${fmtClock(tomorrow)}" else "Wind down"
                     }
                 }
                 TimeInfo(
@@ -152,7 +170,7 @@ object Collect {
     private fun daysLeft(days: Double): String =
         if (days < 1) "${fmtMinutes((days * 24 * 60).toLong())} left"
         else {
-            val d = kotlin.math.ceil(days).toInt()
+            val d = ceil(days).toInt()
             if (d == 1) "1 day left" else "$d days left"
         }
 
@@ -161,7 +179,7 @@ object Collect {
         return if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
     }
 
-    fun fmtClock(t: LocalTime): String = t.format(DateTimeFormatter.ofPattern("h:mm", Locale.ENGLISH))
+    fun fmtClock(t: LocalTime): String = t.format(DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH))
 
     // ---------------- Battery ----------------
 
@@ -187,13 +205,18 @@ object Collect {
         val counter = bm?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CHARGE_COUNTER) ?: Int.MIN_VALUE
 
         val validCurrent = ua != Int.MIN_VALUE && ua != 0
+        val validCounter = counter != Int.MIN_VALUE && counter > 0
         val watts = if (plugged && validCurrent && mv > 0) abs(ua) / 1_000_000.0 * mv / 1000.0 else null
 
         val target = if (level < Config.CHARGE_LIMIT) Config.CHARGE_LIMIT else 100
-        val minutes = if (charging && validCurrent && counter > 0 && level in 1 until target) {
+        val toTarget = if (charging && validCurrent && validCounter && level in 1 until target) {
             val fullUah = counter / (level / 100.0)
             val needUah = fullUah * (target - level) / 100.0
             (needUah / abs(ua) * 60).toInt().takeIf { it in 1..(24 * 60) }
+        } else null
+
+        val left = if (!plugged && validCurrent && validCounter) {
+            (counter.toDouble() / abs(ua) * 60).toInt().takeIf { it in 15..(4 * 24 * 60) }
         } else null
 
         val pm = c.getSystemService(PowerManager::class.java)
@@ -203,7 +226,30 @@ object Collect {
             else -> "Hot"
         }
 
-        return BatteryInfo(level, plugged, charging, watts, minutes, target, tempC, cycles, thermal)
+        val est = Sampler.estimatedCapacityMah(c)
+        val design = designCapacityMah(c)
+        val health = if (est > 0 && design > 0) (est * 100 / design).coerceIn(40, 100) else null
+
+        return BatteryInfo(
+            level, plugged, charging, watts, toTarget, left, target, tempC, cycles, thermal,
+            if (validCounter) counter.toLong() else 0L, health,
+        )
+    }
+
+    private var cachedDesign = -1
+
+    /** Factory capacity. Tries the system's power profile, else the value in Config. */
+    fun designCapacityMah(c: Context): Int {
+        if (cachedDesign > 0) return cachedDesign
+        val fromSystem = try {
+            val cls = Class.forName("com.android.internal.os.PowerProfile")
+            val profile = cls.getConstructor(Context::class.java).newInstance(c)
+            (cls.getMethod("getBatteryCapacity").invoke(profile) as Double).toInt()
+        } catch (e: Throwable) {
+            0
+        }
+        cachedDesign = if (fromSystem in 1000..20000) fromSystem else Config.DESIGN_CAPACITY_MAH
+        return cachedDesign
     }
 
     // ---------------- Data usage ----------------
@@ -215,35 +261,38 @@ object Collect {
     }
 
     @Suppress("DEPRECATION")
-    fun data(c: Context, hourly: Boolean = true): DataInfo {
-        val hour = LocalTime.now().hour
-        if (!hasUsageAccess(c)) {
-            return DataInfo(false, 0, 0, LongArray(24), LongArray(24), hour)
-        }
-        val nsm = c.getSystemService(NetworkStatsManager::class.java)
-            ?: return DataInfo(false, 0, 0, LongArray(24), LongArray(24), hour)
-        val zone = ZoneId.systemDefault()
-        val midnight = LocalDate.now().atStartOfDay(zone).toInstant().toEpochMilli()
-        val now = System.currentTimeMillis()
+    fun data(c: Context): DataInfo {
+        val (hm, hw) = Sampler.hourly(c)
+        val weekM = Store.lastSevenDays(Store.readDaily(c, Sampler.K_DAILY_MOBILE))
+        val weekW = Store.lastSevenDays(Store.readDaily(c, Sampler.K_DAILY_WIFI))
+        var mobile = weekM[6]
+        var wifi = weekW[6]
+        var accurate = false
 
-        fun bytes(type: Int, start: Long, end: Long): Long = try {
-            val b = nsm.querySummaryForDevice(type, null, start, end)
-            b.rxBytes + b.txBytes
-        } catch (e: Exception) {
-            0L
+        // With Usage access, the system's own totals cover the whole day (2 quick queries).
+        if (hasUsageAccess(c)) {
+            val nsm = c.getSystemService(NetworkStatsManager::class.java)
+            if (nsm != null) {
+                val midnight = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                val now = System.currentTimeMillis()
+                fun bytes(type: Int): Long = try {
+                    val b = nsm.querySummaryForDevice(type, null, midnight, now)
+                    b.rxBytes + b.txBytes
+                } catch (e: Exception) {
+                    -1L
+                }
+                val m = bytes(ConnectivityManager.TYPE_MOBILE)
+                val w = bytes(ConnectivityManager.TYPE_WIFI)
+                if (m >= 0 && w >= 0) {
+                    mobile = m
+                    wifi = w
+                    weekM[6] = m
+                    weekW[6] = w
+                    accurate = true
+                }
+            }
         }
-
-        val mobile = bytes(ConnectivityManager.TYPE_MOBILE, midnight, now)
-        val wifi = bytes(ConnectivityManager.TYPE_WIFI, midnight, now)
-        val hm = LongArray(24)
-        val hw = LongArray(24)
-        if (hourly) for (h in 0..hour) {
-            val s = midnight + h * 3_600_000L
-            val e = minOf(s + 3_600_000L, now)
-            hm[h] = bytes(ConnectivityManager.TYPE_MOBILE, s, e)
-            hw[h] = bytes(ConnectivityManager.TYPE_WIFI, s, e)
-        }
-        return DataInfo(true, mobile, wifi, hm, hw, hour)
+        return DataInfo(accurate, mobile, wifi, hm, hw, weekM, weekW, LocalTime.now().hour)
     }
 
     fun fmtBytes(b: Long): String = when {
@@ -274,6 +323,7 @@ object Collect {
             todayMs = Store.focusTodayMs(c),
             sessions = Store.sessionsToday(c),
             streak = Store.streak(c),
+            week = Store.focusWeek(c),
         )
     }
 }

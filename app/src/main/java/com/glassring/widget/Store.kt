@@ -1,6 +1,7 @@
 package com.glassring.widget
 
 import android.content.Context
+import android.content.SharedPreferences
 import java.time.LocalDate
 
 /** Small persistent state shared by every copy of the widget. */
@@ -11,7 +12,7 @@ object Store {
     const val PAGE_FOCUS = 3
     const val PAGE_COUNT = 4
 
-    private fun prefs(c: Context) = c.getSharedPreferences("glass_ring", Context.MODE_PRIVATE)
+    fun prefs(c: Context): SharedPreferences = c.getSharedPreferences("glass_ring", Context.MODE_PRIVATE)
 
     fun page(c: Context) = prefs(c).getInt("page", PAGE_TIME)
     fun setPage(c: Context, page: Int) =
@@ -20,6 +21,43 @@ object Store {
     /** 0 = day, 1 = week, 2 = month, 3 = year. */
     fun timeMode(c: Context) = prefs(c).getInt("time_mode", 0)
     fun cycleTimeMode(c: Context) = prefs(c).edit().putInt("time_mode", (timeMode(c) + 1) % 4).apply()
+
+    /** Battery page: false = stats, true = 24-hour chart. */
+    fun batteryChart(c: Context) = prefs(c).getBoolean("battery_chart", true)
+    fun toggleBatteryChart(c: Context) = prefs(c).edit().putBoolean("battery_chart", !batteryChart(c)).apply()
+
+    /** Data page: false = today by hour, true = last 7 days. */
+    fun dataWeek(c: Context) = prefs(c).getBoolean("data_week", false)
+    fun toggleDataWeek(c: Context) = prefs(c).edit().putBoolean("data_week", !dataWeek(c)).apply()
+
+    // ---- Day-keyed history ("epochDay=value;…"), used for 7-day charts ----
+
+    fun readDaily(c: Context, key: String): MutableMap<Long, Long> {
+        val out = HashMap<Long, Long>()
+        val raw = prefs(c).getString(key, "") ?: ""
+        for (part in raw.split(';')) {
+            val i = part.indexOf('=')
+            if (i <= 0) continue
+            val d = part.substring(0, i).toLongOrNull() ?: continue
+            val v = part.substring(i + 1).toLongOrNull() ?: continue
+            out[d] = v
+        }
+        return out
+    }
+
+    fun writeDaily(c: Context, key: String, map: Map<Long, Long>, keepDays: Int = 8) {
+        val today = LocalDate.now().toEpochDay()
+        val s = map.filterKeys { it > today - keepDays }.entries
+            .sortedBy { it.key }
+            .joinToString(";") { "${it.key}=${it.value}" }
+        prefs(c).edit().putString(key, s).apply()
+    }
+
+    /** Last 7 days, oldest first, today last. */
+    fun lastSevenDays(map: Map<Long, Long>): LongArray {
+        val today = LocalDate.now().toEpochDay()
+        return LongArray(7) { i -> map[today - 6 + i] ?: 0L }
+    }
 
     // ---- Focus timer state ----
     /** Wall-clock time the running session ends, or 0 when not running. */
@@ -87,6 +125,9 @@ object Store {
             .putLong("focus_last_day", today)
             .putInt("focus_streak", streak)
             .apply()
+        val daily = readDaily(c, "focus_daily")
+        daily[today] = (daily[today] ?: 0L) + ms
+        writeDaily(c, "focus_daily", daily)
     }
 
     /** Resets today's counters after midnight. */
@@ -105,6 +146,13 @@ object Store {
         val end = focusEndAt(c)
         if (end > 0 && start > 0) ms += (minOf(System.currentTimeMillis(), end) - start).coerceAtLeast(0)
         return ms
+    }
+
+    /** Focus minutes for the last 7 days, today last (includes a running session). */
+    fun focusWeek(c: Context): LongArray {
+        val week = lastSevenDays(readDaily(c, "focus_daily"))
+        week[6] = focusTodayMs(c)
+        return week
     }
 
     fun sessionsToday(c: Context): Int {
