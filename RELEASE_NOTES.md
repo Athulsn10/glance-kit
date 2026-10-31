@@ -1,13 +1,16 @@
-## Glance Kit 1.8
+## Glance Kit 1.9
 
 **Install:** download **GlanceKit.apk** below on your phone and tap it. It installs over earlier 1.1+ versions.
 
 ### What's new
-- **Focus timer fix:** the countdown no longer freezes after you switch tabs and come back. It kept running underneath, but the screen stopped updating, so it looked paused.
-- **Choose and order the all-in-one widget's pages.** In the app, go to Setup > All-in-one widget pages. Move pages up or down, remove the ones you don't want, and add them back any time. The widget updates straight away. The dots and arrows follow your order, and the arrows hide if only one page is left.
-- **Compass page on the all-in-one widget.** It shows your last heading. While the live compass is on, its dial turns live, using the same sensor feed as the Compass widget, so it adds no extra battery use. Tap it to go live, or, when it's live, to open the full compass.
-- The live compass now counts the all-in-one's Compass page as a place to show it, so the Compass widget is no longer required.
+- **Drag to reorder the all-in-one widget's pages.** In Setup > All-in-one widget pages, hold the handle and drag a page up or down. Rows slide out of the way with a light tick, and the widget updates when you let go.
+- **Cleaner page controls:** the cramped Remove/Add buttons are now − and + icons. Hidden pages are listed under "Hidden", ready to add back.
+- **Get in touch** from Setup > About:
+  - **Report a bug:** opens an email with your phone model, Android version and app version filled in.
+  - **Contact the developer:** athulsn34@gmail.com
+  - **Request a feature:** opens a new issue on GitHub.
+  - **Source code and contributions:** github.com/Athulsn10/glance-kit
 
-### Also in 1.7
-- A new immersive focus timer with 15/25/45/60-minute presets, a full-screen mode and haptics.
-- Clearer permission buttons, a working live compass "Turn on", and a more honest cache card.
+### Also in 1.8
+- Choose, order and hide the all-in-one widget's pages, and a new Compass page.
+- The focus timer no longer freezes after switching tabs.

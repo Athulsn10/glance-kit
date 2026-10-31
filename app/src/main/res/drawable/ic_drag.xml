@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Drag handle: six dots. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M9,5.5a1.6,1.6 0,1 1,-3.2 0a1.6,1.6 0,1 1,3.2 0zM18.2,5.5a1.6,1.6 0,1 1,-3.2 0a1.6,1.6 0,1 1,3.2 0zM9,12a1.6,1.6 0,1 1,-3.2 0a1.6,1.6 0,1 1,3.2 0zM18.2,12a1.6,1.6 0,1 1,-3.2 0a1.6,1.6 0,1 1,3.2 0zM9,18.5a1.6,1.6 0,1 1,-3.2 0a1.6,1.6 0,1 1,3.2 0zM18.2,18.5a1.6,1.6 0,1 1,-3.2 0a1.6,1.6 0,1 1,3.2 0z" />
+</vector>

@@ -981,17 +981,47 @@ class MainActivity : Activity(), SensorEventListener {
             addView(Ui.text(context, "Glance Kit $v", 15f, Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context, "Everything is read on your phone. No accounts, no tracking, nothing leaves the device.", 13f, Ui.FAINT))
+            addView(Ui.spacer(context, 8))
+            fun link(icon: Int, title: String, sub: String, onClick: () -> Unit) {
+                val r = Ui.hstack(context).apply {
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, Ui.dp(context, 12), 0, Ui.dp(context, 12))
+                    setOnClickListener { onClick() }
+                }
+                r.addView(ImageView(context).apply {
+                    setImageResource(icon)
+                    val pad = Ui.dp(context, 9)
+                    setPadding(pad, pad, pad, pad)
+                    imageTintList = android.content.res.ColorStateList.valueOf(Ui.WHITE)
+                    background = Ui.rounded(0xFF1C1C1C.toInt(), Ui.dp(context, 20).toFloat())
+                }, LinearLayout.LayoutParams(Ui.dp(context, 40), Ui.dp(context, 40)))
+                val t = Ui.vstack(context).apply { setPadding(Ui.dp(context, 14), 0, 0, 0) }
+                t.addView(Ui.text(context, title, 15f, Ui.WHITE, medium = true))
+                t.addView(Ui.text(context, sub, 12f, Ui.FAINT).apply { setPadding(0, Ui.dp(context, 3), 0, 0) })
+                r.addView(t, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                addView(r)
+            }
+            link(R.drawable.ic_bug, "Report a bug", "Email with your phone and app details filled in") {
+                email("Glance Kit $v: bug report",
+                    "What happened:\n\n\nWhat you expected:\n\n\nSteps to reproduce:\n1. \n\n" +
+                        "---\nApp: Glance Kit $v\nPhone: ${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}\n" +
+                        "Android: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})\n")
+            }
+            link(R.drawable.ic_mail, "Contact the developer", DEV_EMAIL) { email("Glance Kit $v", "") }
+            link(R.drawable.ic_idea, "Request a feature", "Open an issue on GitHub") { openUrl("$REPO_URL/issues/new") }
+            link(R.drawable.ic_code, "Source code and contributions", REPO_URL.removePrefix("https://")) { openUrl(REPO_URL) }
         })
     }
 
-    /** Choose, order and hide the all-in-one widget's pages. */
+    /** Choose, order and hide the all-in-one widget's pages. Drag the handle to reorder. */
     private fun pagesCard(): LinearLayout = Ui.card(this, "ALL-IN-ONE WIDGET PAGES").apply {
-        val order = Store.pageOrder(context).toMutableList()
+        val ctx = context
+        val order = Store.pageOrder(ctx)
         val hidden = (0 until Store.PAGE_COUNT).filter { it !in order }
-        addView(Ui.text(context, "Turn pages on or off and move them up or down. The widget updates straight away.", 13f, Ui.SOFT))
-        addView(Ui.spacer(context, 6))
+        addView(Ui.text(ctx, "Drag the handle to reorder. Tap − to hide a page and + to bring it back. The widget updates straight away.", 13f, Ui.SOFT))
+        addView(Ui.spacer(ctx, 8))
+
         fun save(newOrder: List<Int>) {
-            focusHaptics.tick(0.5f)
             Store.setPageOrder(applicationContext, newOrder)
             io.execute {
                 runCatching {
@@ -1003,37 +1033,133 @@ class MainActivity : Activity(), SensorEventListener {
             }
             adapter.notifyItemChanged(TAB_SETUP)
         }
-        fun iconBtn(label: String, enabled: Boolean, onClick: () -> Unit) =
-            Ui.text(context, label, 16f, if (enabled) Ui.WHITE else 0xFF3A3A3A.toInt(), medium = true, gravity = Gravity.CENTER).apply {
-                background = Ui.rounded(0xFF1C1C1C.toInt(), Ui.dp(context, 18).toFloat())
-                if (enabled) setOnClickListener { onClick() }
-            }
-        val rows = order.map { it to true } + hidden.map { it to false }
-        rows.forEach { (page, on) ->
-            val i = order.indexOf(page)
-            val row = Ui.hstack(context).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(0, Ui.dp(context, 10), 0, 0) }
-            row.addView(Ui.text(context, if (on) "${i + 1}" else "–", 12f, Ui.FAINT, mono = true), LinearLayout.LayoutParams(Ui.dp(context, 22), ViewGroup.LayoutParams.WRAP_CONTENT))
-            row.addView(Ui.text(context, Store.PAGE_NAMES[page], 16f, if (on) Ui.WHITE else Ui.FAINT, medium = true),
-                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            if (on) {
-                row.addView(iconBtn("↑", i > 0) {
-                    save(order.toMutableList().apply { add(i - 1, removeAt(i)) })
-                }, LinearLayout.LayoutParams(Ui.dp(context, 40), Ui.dp(context, 40)).apply { marginEnd = Ui.dp(context, 6) })
-                row.addView(iconBtn("↓", i < order.size - 1) {
-                    save(order.toMutableList().apply { add(i + 1, removeAt(i)) })
-                }, LinearLayout.LayoutParams(Ui.dp(context, 40), Ui.dp(context, 40)).apply { marginEnd = Ui.dp(context, 8) })
-            }
-            val canHide = !on || order.size > 1 // keep at least one page
-            row.addView(Ui.pill(context, if (on) "Remove" else "Add", !on) {
-                if (on) { if (canHide) save(order - page) } else save(order + page)
-            }.apply { alpha = if (canHide) 1f else 0.4f }, LinearLayout.LayoutParams(Ui.dp(context, 88), Ui.dp(context, 40)))
-            addView(row)
+
+        fun iconBtn(res: Int, enabled: Boolean, primary: Boolean, desc: String, onClick: () -> Unit) = ImageView(ctx).apply {
+            setImageResource(res)
+            contentDescription = desc
+            val pad = Ui.dp(ctx, 10)
+            setPadding(pad, pad, pad, pad)
+            imageTintList = android.content.res.ColorStateList.valueOf(
+                if (!enabled) 0xFF3A3A3A.toInt() else if (primary) Ui.BG else Ui.WHITE)
+            background = Ui.rounded(if (primary && enabled) Ui.WHITE else 0xFF1C1C1C.toInt(), Ui.dp(ctx, 20).toFloat())
+            if (enabled) setOnClickListener { focusHaptics.tick(0.5f); onClick() }
         }
-        addView(Ui.spacer(context, 12))
-        addView(Ui.text(context,
+
+        fun row(page: Int, number: String, on: Boolean): LinearLayout = Ui.hstack(ctx).apply {
+            tag = page
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, Ui.dp(ctx, 5), 0, Ui.dp(ctx, 5))
+            background = Ui.rounded(Ui.CARD, Ui.dp(ctx, 14).toFloat())
+            if (on) {
+                addView(ImageView(ctx).apply {
+                    setImageResource(R.drawable.ic_drag)
+                    contentDescription = "Drag to reorder"
+                    val pad = Ui.dp(ctx, 10)
+                    setPadding(pad, pad, pad, pad)
+                    imageTintList = android.content.res.ColorStateList.valueOf(Ui.FAINT)
+                }, LinearLayout.LayoutParams(Ui.dp(ctx, 44), Ui.dp(ctx, 44)))
+            } else addView(View(ctx), LinearLayout.LayoutParams(Ui.dp(ctx, 44), Ui.dp(ctx, 44)))
+            addView(Ui.text(ctx, number, 12f, Ui.FAINT, mono = true), LinearLayout.LayoutParams(Ui.dp(ctx, 24), ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(Ui.text(ctx, Store.PAGE_NAMES[page], 16f, if (on) Ui.WHITE else Ui.FAINT, medium = true),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            val canHide = order.size > 1 // keep at least one page
+            addView(
+                if (on) iconBtn(R.drawable.ic_minus, canHide, false, "Remove ${Store.PAGE_NAMES[page]}") { save(order - page) }
+                else iconBtn(R.drawable.ic_plus, true, true, "Add ${Store.PAGE_NAMES[page]}") { save(order + page) },
+                LinearLayout.LayoutParams(Ui.dp(ctx, 40), Ui.dp(ctx, 40)))
+        }
+
+        val list = Ui.vstack(ctx)
+        order.forEachIndexed { i, page ->
+            val r = row(page, "${i + 1}", true)
+            r.getChildAt(0).setOnTouchListener(dragger(list, r) {
+                val newOrder = (0 until list.childCount).map { list.getChildAt(it).tag as Int }
+                if (newOrder != order) save(newOrder)
+            })
+            list.addView(r)
+        }
+        addView(list)
+        if (hidden.isNotEmpty()) {
+            addView(Ui.spacer(ctx, 14))
+            addView(Ui.label(ctx, "HIDDEN"))
+            addView(Ui.spacer(ctx, 4))
+            hidden.forEach { addView(row(it, "", false)) }
+        }
+        addView(Ui.spacer(ctx, 12))
+        addView(Ui.text(ctx,
             "The Compass page shows your last heading and moves live while the live compass is on, " +
                 "using the same sensor feed as the Compass widget, so it adds no extra battery use.",
             12f, Ui.FAINT))
+    }
+
+    /**
+     * Drag-to-reorder for a row in [list]. The dragged row follows your finger; when it passes
+     * halfway over a neighbour, the neighbour hops to the other side (with a haptic tick).
+     */
+    private fun dragger(list: LinearLayout, row: View, onDrop: () -> Unit): View.OnTouchListener {
+        var startY = 0f
+        fun renumber() {
+            for (i in 0 until list.childCount) ((list.getChildAt(i) as LinearLayout).getChildAt(1) as TextView).text = "${i + 1}"
+        }
+        return View.OnTouchListener { v, e ->
+            when (e.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> {
+                    v.parent.requestDisallowInterceptTouchEvent(true) // keep the page and tabs from scrolling
+                    startY = e.rawY
+                    row.elevation = Ui.dp(this, 10).toFloat()
+                    row.background = Ui.rounded(0xFF1E1E1E.toInt(), Ui.dp(this, 14).toFloat())
+                    row.animate().scaleX(1.03f).scaleY(1.03f).setDuration(120).start()
+                    focusHaptics.tick(0.6f)
+                    true
+                }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    val dy = e.rawY - startY
+                    val idx = list.indexOfChild(row)
+                    if (dy > 0 && idx < list.childCount - 1) {
+                        val next = list.getChildAt(idx + 1)
+                        if (dy > next.height / 2f) {
+                            list.removeView(next); list.addView(next, idx)
+                            startY += next.height
+                            focusHaptics.detent(0.4f); renumber()
+                        }
+                    } else if (dy < 0 && idx > 0) {
+                        val prev = list.getChildAt(idx - 1)
+                        if (-dy > prev.height / 2f) {
+                            list.removeView(prev); list.addView(prev, idx)
+                            startY -= prev.height
+                            focusHaptics.detent(0.4f); renumber()
+                        }
+                    }
+                    row.translationY = e.rawY - startY
+                    true
+                }
+                android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                    row.animate().translationY(0f).scaleX(1f).scaleY(1f).setDuration(150).withEndAction {
+                        row.elevation = 0f
+                        row.background = Ui.rounded(Ui.CARD, Ui.dp(this, 14).toFloat())
+                        onDrop()
+                    }.start()
+                    focusHaptics.click(0.5f)
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun email(subject: String, body: String) {
+        val i = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(DEV_EMAIL))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            if (body.isNotEmpty()) putExtra(Intent.EXTRA_TEXT, body)
+        }
+        runCatching { startActivity(i) }.onFailure {
+            android.widget.Toast.makeText(this, "No email app found. Write to $DEV_EMAIL", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun openUrl(url: String) {
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
     }
 
     private fun pin(cls: Class<*>) {
@@ -1068,6 +1194,8 @@ class MainActivity : Activity(), SensorEventListener {
         const val TAB_INSTRUMENTS = 5
         const val TAB_PHONE = 6
         const val TAB_SETUP = 7
+        const val DEV_EMAIL = "athulsn34@gmail.com"
+        const val REPO_URL = "https://github.com/Athulsn10/glance-kit"
         private const val REQ_CLEAR_CACHE = 7
     }
 }
