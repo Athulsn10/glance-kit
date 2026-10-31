@@ -114,6 +114,7 @@ object RingRenderer {
         baseColor: Int = WHITE,
         highlightColor: Int = Config.ACCENT,
         minPeak: Long = 1L,
+        guide: Long = -1L,
     ): Bitmap {
         val (bmp, s) = newBitmap(c, widthDp, heightDp, 2f)
         val w = bmp.width.toFloat()
@@ -126,6 +127,7 @@ object RingRenderer {
         val bw = min(slot * (if (n > 12) 0.72f else 0.5f), 18f * s)
         var peak = max(1L, minPeak)
         for (i in 0 until n) peak = max(peak, a[i] + (b?.get(i) ?: 0L))
+        if (guide > 0) peak = max(peak, guide * 11 / 10)
         val minH = 3f * s
         val radius = min(bw / 2f, 4f * s)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -160,6 +162,15 @@ object RingRenderer {
                     cv.drawRoundRect(RectF(x, h - aH, x + bw, h), radius, radius, p)
                 }
             }
+        }
+        if (guide > 0) {
+            val gy = h - guide.toFloat() / peak * h
+            val dash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = MUTED
+                strokeWidth = 1.2f * s
+                pathEffect = DashPathEffect(floatArrayOf(4f * s, 4f * s), 0f)
+            }
+            cv.drawLine(0f, gy, w, gy, dash)
         }
         return bmp
     }

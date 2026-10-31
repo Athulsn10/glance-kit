@@ -33,7 +33,7 @@ private const val RING_DP = 76f
 private const val CHART_W_DP = 320f
 private const val CHART_H_DP = 44f
 
-private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3)
+private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4)
 private val AXIS4 = intArrayOf(R.id.a40, R.id.a41, R.id.a42, R.id.a43, R.id.a44)
 private val AXIS7 = intArrayOf(R.id.a70, R.id.a71, R.id.a72, R.id.a73, R.id.a74, R.id.a75, R.id.a76)
 
@@ -115,6 +115,7 @@ class RingWidgetReceiver : AppWidgetProvider() {
             ACTION_RING -> {
                 when (Store.page(context)) {
                     Store.PAGE_TIME -> Store.cycleTimeMode(context)
+                    Store.PAGE_STEPS -> Store.toggleStepsWeek(context)
                     Store.PAGE_DATA -> Store.toggleDataWeek(context)
                     Store.PAGE_FOCUS -> Focus.toggle(context)
                     else -> Unit // battery: tap just refreshes
@@ -150,7 +151,9 @@ object Views {
     fun root(c: Context, s: Snapshot): RemoteViews {
         val rv = RemoteViews(c.packageName, R.layout.widget_root)
         rv.removeAllViews(R.id.flipper)
+        // Order must match the Store.PAGE_* numbers.
         rv.addView(R.id.flipper, timePage(c, s))
+        rv.addView(R.id.flipper, stepsPage(c, s))
         rv.addView(R.id.flipper, batteryPage(c, s))
         rv.addView(R.id.flipper, dataPage(c, s))
         rv.addView(R.id.flipper, focusPage(c, s))
@@ -173,6 +176,7 @@ object Views {
     }
 
     fun titleFor(s: Snapshot, page: Int): String = when (page) {
+        Store.PAGE_STEPS -> if (s.stepsWeek) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
         Store.PAGE_BATTERY -> batteryTitle(s.battery)
         Store.PAGE_DATA -> if (s.dataWeek) "DATA · LAST 7 DAYS" else "DATA · TODAY"
         Store.PAGE_FOCUS -> focusTitle(s.focus)
@@ -181,6 +185,7 @@ object Views {
 
     /** Cheap version for page switches: reads only what the title needs. */
     fun titleFor(c: Context, page: Int): String = when (page) {
+        Store.PAGE_STEPS -> if (Store.stepsWeek(c)) "STEPS · LAST 7 DAYS" else "STEPS · TODAY"
         Store.PAGE_BATTERY -> batteryTitle(Collect.battery(c))
         Store.PAGE_DATA -> if (Store.dataWeek(c)) "DATA · LAST 7 DAYS" else "DATA · TODAY"
         Store.PAGE_FOCUS -> focusTitle(Collect.focus(c))
@@ -245,6 +250,65 @@ object Views {
         ringClick(c, rv)
         return rv
     }
+
+    private fun stepsPage(c: Context, s: Snapshot): RemoteViews {
+        val st = s.steps
+        val rv = RemoteViews(c.packageName, R.layout.page_main)
+
+        if (!st.available || !st.granted) {
+            rv.setImageViewBitmap(R.id.ring, RingRenderer.ring(c, RING_DP, emptyList(), head = false))
+            rv.setTextViewText(R.id.ring_value, "–")
+            rv.setTextViewText(R.id.ring_caption, "STEPS")
+            rv.setTextViewText(R.id.headline, if (st.available) "Count steps" else "No step sensor")
+            rv.setTextViewText(R.id.sub, if (st.available) "Tap to allow step counting" else "This phone can't count steps")
+            stats(rv, steps(st.goal), "GOAL", "–", "DAY STREAK")
+            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, LongArray(24), null, lastIndex = -1))
+            axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
+            // Opens the app, which asks for the permission.
+            val open = PendingIntent.getActivity(
+                c, 50,
+                Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            rv.setOnClickPendingIntent(R.id.ring_box, open)
+            rv.setOnClickPendingIntent(R.id.headline, open)
+            rv.setOnClickPendingIntent(R.id.sub, open)
+            return rv
+        }
+
+        val met = st.today >= st.goal
+        val frac = (st.today.toFloat() / st.goal).coerceIn(0f, 1f)
+        rv.setImageViewBitmap(
+            R.id.ring,
+            RingRenderer.ring(c, RING_DP, listOf(RingRenderer.Arc(0f, frac, if (met) Config.ACCENT else WHITE))),
+        )
+        rv.setTextViewText(R.id.ring_value, number("${st.today * 100 / st.goal}", "%"))
+        rv.setTextViewText(R.id.ring_caption, if (met) "GOAL MET" else "OF GOAL")
+
+        if (s.stepsWeek) {
+            val total = st.week.sum()
+            val activeDays = st.week.count { it > 0 }.coerceAtLeast(1)
+            rv.setTextViewText(R.id.headline, steps(total))
+            rv.setTextViewText(R.id.sub, "steps in 7 days · avg ${steps(total / activeDays)}")
+            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, st.week, null, highlight = 6, minPeak = st.goal, guide = st.goal))
+            axis7(rv, lastSevenDayNames())
+        } else {
+            rv.setTextViewText(R.id.headline, steps(st.today))
+            rv.setTextViewText(R.id.sub, String.format(Locale.ENGLISH, "steps · %.1f km", st.km))
+            val hour = LocalTime.now().hour
+            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, st.hourly, null, lastIndex = hour, highlight = hour, minPeak = 500L))
+            axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
+        }
+        stats(
+            rv,
+            if (met) "Done" else steps(st.goal - st.today), if (met) "GOAL MET" else "TO GOAL",
+            "${st.streak}", if (st.streak == 1) "DAY STREAK" else "DAYS STREAK",
+        )
+        ringClick(c, rv)
+        return rv
+    }
+
+    private fun steps(n: Long): String = String.format(Locale.ENGLISH, "%,d", n)
 
     private fun batteryPage(c: Context, s: Snapshot): RemoteViews {
         val b = s.battery

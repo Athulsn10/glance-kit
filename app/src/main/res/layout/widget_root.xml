@@ -62,6 +62,9 @@
             <ImageView android:id="@+id/dot3" android:layout_width="wrap_content" android:layout_height="wrap_content"
                 android:layout_marginStart="2dp" android:layout_marginEnd="2dp" android:src="@drawable/dot_off"
                 android:contentDescription="Page 4" />
+            <ImageView android:id="@+id/dot4" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="2dp" android:layout_marginEnd="2dp" android:src="@drawable/dot_off"
+                android:contentDescription="Page 5" />
         </LinearLayout>
 
         <ImageView

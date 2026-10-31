@@ -20,4 +20,10 @@ object Config {
      * Only used if the phone doesn't report it. Pixel 8: 4575 mAh.
      */
     const val DESIGN_CAPACITY_MAH = 4575
+
+    /** Daily step goal. */
+    const val STEP_GOAL = 8000L
+
+    /** Average stride, used to estimate distance from steps. */
+    const val STRIDE_METRES = 0.75
 }

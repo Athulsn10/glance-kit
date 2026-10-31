@@ -7,10 +7,11 @@ import java.time.LocalDate
 /** Small persistent state shared by every copy of the widget. */
 object Store {
     const val PAGE_TIME = 0
-    const val PAGE_BATTERY = 1
-    const val PAGE_DATA = 2
-    const val PAGE_FOCUS = 3
-    const val PAGE_COUNT = 4
+    const val PAGE_STEPS = 1
+    const val PAGE_BATTERY = 2
+    const val PAGE_DATA = 3
+    const val PAGE_FOCUS = 4
+    const val PAGE_COUNT = 5
 
     fun prefs(c: Context): SharedPreferences = c.getSharedPreferences("glass_ring", Context.MODE_PRIVATE)
 
@@ -25,6 +26,10 @@ object Store {
     /** Battery page: false = stats, true = 24-hour chart. */
     fun batteryChart(c: Context) = prefs(c).getBoolean("battery_chart", true)
     fun toggleBatteryChart(c: Context) = prefs(c).edit().putBoolean("battery_chart", !batteryChart(c)).apply()
+
+    /** Steps page: false = today by hour, true = last 7 days. */
+    fun stepsWeek(c: Context) = prefs(c).getBoolean("steps_week", false)
+    fun toggleStepsWeek(c: Context) = prefs(c).edit().putBoolean("steps_week", !stepsWeek(c)).apply()
 
     /** Data page: false = today by hour, true = last 7 days. */
     fun dataWeek(c: Context) = prefs(c).getBoolean("data_week", false)

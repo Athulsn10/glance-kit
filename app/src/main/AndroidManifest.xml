@@ -6,6 +6,9 @@
     <uses-permission
         android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
+    <!-- Steps page: reads the phone's step counter. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
     <!-- Short buzz when a focus session ends. -->
     <uses-permission android:name="android.permission.VIBRATE" />
 

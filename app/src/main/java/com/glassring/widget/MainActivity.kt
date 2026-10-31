@@ -1,5 +1,6 @@
 package com.glassring.widget
 
+import android.Manifest
 import android.app.Activity
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
@@ -23,6 +24,7 @@ import kotlinx.coroutines.launch
 class MainActivity : Activity() {
 
     private lateinit var status: TextView
+    private lateinit var stepsButton: Button
     private var lastAccess: Boolean? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,9 +74,9 @@ class MainActivity : Activity() {
         col.addView(text("Your day, battery, data and focus in one widget.", 26f, Color.WHITE, bold = true, bottom = 16))
         col.addView(
             text(
-                "Use the arrows at the bottom of the widget to change page, or tap a dot to jump. " +
+                "Use the arrows at the top of the widget to change page, or tap a dot to jump. " +
                     "Tap the ring to switch views: day, week, month or year on the time page, " +
-                    "chart or stats on battery, today or 7 days on data, and start or pause on focus.",
+                    "today or 7 days on steps and data, and start or pause on focus.",
                 15f, grey, bottom = 8,
             ),
         )
@@ -87,6 +89,9 @@ class MainActivity : Activity() {
                 status.text = "Long-press your home screen, then Widgets > Glance Kit."
             }
         })
+
+        stepsButton = button("Allow step counting", primary = false) { askForSteps() }
+        col.addView(stepsButton)
 
         col.addView(text("", 8f, grey, bottom = 24))
         col.addView(text("OPTIONAL · FULL-DAY DATA", 12f, faint, mono = true))
@@ -115,8 +120,34 @@ class MainActivity : Activity() {
         })
     }
 
+    /** Steps need the "physical activity" permission. Asked once automatically, then from the button. */
+    private fun askForSteps() {
+        if (!StepCounter.granted(this)) {
+            requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        updateStepsButton()
+        CoroutineScope(Dispatchers.Default).launch { runCatching { refreshAll(applicationContext) } }
+    }
+
+    private fun updateStepsButton() {
+        val ok = StepCounter.granted(this)
+        stepsButton.text = if (ok) "Step counting is on" else "Allow step counting"
+        stepsButton.isEnabled = !ok
+        stepsButton.alpha = if (ok) 0.5f else 1f
+    }
+
     override fun onResume() {
         super.onResume()
+        updateStepsButton()
+        val p = Store.prefs(this)
+        if (StepCounter.available(this) && !StepCounter.granted(this) && !p.getBoolean("asked_steps", false)) {
+            p.edit().putBoolean("asked_steps", true).apply()
+            askForSteps()
+        }
         val access = Collect.hasUsageAccess(this)
         status.text = if (access) "USAGE ACCESS: ON" else "USAGE ACCESS: OFF"
         // Redraw only when the permission actually changed.
