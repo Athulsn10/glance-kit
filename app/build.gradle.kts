@@ -1,19 +1,35 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+/*
+ * Play Store upload key. Never committed. Read from either:
+ *  - environment variables (GitHub Actions): UPLOAD_KEYSTORE_FILE, UPLOAD_STORE_PASSWORD,
+ *    UPLOAD_KEY_ALIAS, UPLOAD_KEY_PASSWORD
+ *  - or a local keystore.properties file (git-ignored) with storeFile, storePassword,
+ *    keyAlias, keyPassword
+ */
+val uploadProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun upload(env: String, prop: String): String? = System.getenv(env) ?: uploadProps.getProperty(prop)
+val uploadStore = upload("UPLOAD_KEYSTORE_FILE", "storeFile")
+
 android {
     namespace = "com.athulsn10.glancekit"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.athulsn10.glancekit"
         minSdk = 31
-        targetSdk = 35
+        targetSdk = 36
         // Each GitHub build gets a higher number, so phones accept it as an update.
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.17." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        versionName = "1.18." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
     }
 
     signingConfigs {
@@ -25,6 +41,14 @@ android {
             keyAlias = "glancekit"
             keyPassword = "glancekit"
         }
+        if (uploadStore != null) {
+            create("upload") {
+                storeFile = file(uploadStore)
+                storePassword = upload("UPLOAD_STORE_PASSWORD", "storePassword")
+                keyAlias = upload("UPLOAD_KEY_ALIAS", "keyAlias")
+                keyPassword = upload("UPLOAD_KEY_PASSWORD", "keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -33,7 +57,9 @@ android {
         }
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            // Signed with your private upload key when it's available (for the Play Store);
+            // otherwise with the test key, so a local release build still installs.
+            signingConfig = signingConfigs.getByName(if (uploadStore != null) "upload" else "debug")
         }
     }
 

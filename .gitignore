@@ -9,3 +9,9 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Play Store upload key: never commit
+keystore.properties
+*.jks
+*.keystore
+!app/glancekit.keystore

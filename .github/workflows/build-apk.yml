@@ -11,6 +11,9 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # True once the Play Store upload key has been added as repository secrets.
+      HAS_UPLOAD_KEY: ${{ secrets.UPLOAD_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +31,22 @@ jobs:
           ./gradlew assembleDebug --console=plain 2>&1 | tee build.log
           cp app/build/outputs/apk/debug/app-debug.apk GlanceKit.apk
 
+      # Play Store bundle, signed with your private upload key (from the repo's secrets).
+      - name: Build the AAB
+        if: env.HAS_UPLOAD_KEY == 'true'
+        env:
+          UPLOAD_KEYSTORE_BASE64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          UPLOAD_STORE_PASSWORD: ${{ secrets.UPLOAD_STORE_PASSWORD }}
+          UPLOAD_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          UPLOAD_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          echo "$UPLOAD_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          export UPLOAD_KEYSTORE_FILE="$RUNNER_TEMP/upload.jks"
+          ./gradlew bundleRelease --console=plain 2>&1 | tee -a build.log
+          cp app/build/outputs/bundle/release/app-release.aab GlanceKit.aab
+          rm -f "$RUNNER_TEMP/upload.jks"
+
       # On failure, surface the compiler errors as an annotation on the run.
       - name: Report build errors
         if: failure()
@@ -38,18 +57,23 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: GlanceKit-apk
-          path: GlanceKit.apk
+          path: |
+            GlanceKit.apk
+            GlanceKit.aab
+          if-no-files-found: ignore
 
-      # Each build becomes a numbered release (v1.17.<run>) marked as latest, so this link
+      # Each build becomes a numbered release (v1.18.<run>) marked as latest, so this link
       # always gives the newest APK:
       # https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.17.${{ github.run_number }}
+          tag_name: v1.18.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          name: Glance Kit 1.17.${{ github.run_number }}
+          name: Glance Kit 1.18.${{ github.run_number }}
           body_path: RELEASE_NOTES.md
           generate_release_notes: true
-          files: GlanceKit.apk
+          files: |
+            GlanceKit.apk
+            GlanceKit.aab
           make_latest: true
