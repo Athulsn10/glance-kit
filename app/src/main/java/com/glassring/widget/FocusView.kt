@@ -210,10 +210,37 @@ class FocusView(context: Context) : View(context) {
             stepAndDraw(canvas, confetti, 1 / 30f, gravity = dp(260f), rect = true)
         } else confetti.clear()
 
-        // Keep animating while visible; roughly 30 fps, slower when idle.
-        if (isShown && getGlobalVisibleRect(vis)) {
-            postInvalidateDelayed(if (running || now < celebrateUntil || embers.isNotEmpty()) 33L else 66L)
+    }
+
+    /**
+     * Animation clock. It runs on its own instead of from onDraw: when you swipe to another
+     * tab and back, Android can reuse the last picture without calling onDraw, which froze the
+     * timer. ~30 fps while on screen; when off screen it only checks once a second.
+     */
+    private val frame = object : Runnable {
+        override fun run() {
+            val onScreen = isShown && getGlobalVisibleRect(vis)
+            if (onScreen) invalidate()
+            val busy = running || SystemClock.uptimeMillis() < celebrateUntil || embers.isNotEmpty()
+            postDelayed(this, if (!onScreen) 1000L else if (busy) 33L else 66L)
         }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        removeCallbacks(frame)
+        post(frame)
+    }
+
+    override fun onDetachedFromWindow() {
+        removeCallbacks(frame)
+        super.onDetachedFromWindow()
+    }
+
+    override fun onVisibilityAggregated(isVisible: Boolean) {
+        super.onVisibilityAggregated(isVisible)
+        removeCallbacks(frame)
+        if (isVisible && isAttachedToWindow) post(frame)
     }
 
     private fun mood(rem: Long): String {
