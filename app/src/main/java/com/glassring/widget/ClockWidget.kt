@@ -97,6 +97,14 @@ object ClockViews {
             rv.setViewVisibility(R.id.clock_weather, android.view.View.VISIBLE)
         } else rv.setViewVisibility(R.id.clock_weather, android.view.View.GONE)
 
+        // Air quality, coloured by its category.
+        val air = Weather.air(c)
+        if (air != null) {
+            rv.setTextViewText(R.id.clock_aqi, air.line)
+            rv.setTextColor(R.id.clock_aqi, air.color)
+            rv.setViewVisibility(R.id.clock_aqi, android.view.View.VISIBLE)
+        } else rv.setViewVisibility(R.id.clock_aqi, android.view.View.GONE)
+
         // Next alarm.
         val alarm = Device.nextAlarm(c)
         rv.setTextViewText(R.id.clock_alarm, alarmText(alarm))

@@ -51,6 +51,71 @@ object Weather {
     }
 
     private const val K = "wx_json"
+    private const val KA = "aq_json"
+
+    /** US AQI with its category name and colour. */
+    data class Air(val aqi: Int, val pm25: Double?, val fetchedAt: Long) {
+        val level: String get() = when {
+            aqi <= 50 -> "Good"
+            aqi <= 100 -> "Moderate"
+            aqi <= 150 -> "Unhealthy for sensitive groups"
+            aqi <= 200 -> "Unhealthy"
+            aqi <= 300 -> "Very unhealthy"
+            else -> "Hazardous"
+        }
+        val color: Int get() = when {
+            aqi <= 50 -> 0xFF6BCB77.toInt()
+            aqi <= 100 -> 0xFFE8C547.toInt()
+            aqi <= 150 -> 0xFFFF8C42.toInt()
+            aqi <= 200 -> 0xFFE8483A.toInt()
+            aqi <= 300 -> 0xFFB06AE8.toInt()
+            else -> 0xFFC0392B.toInt()
+        }
+        /** e.g. "AQI 72 · Moderate · PM2.5 22" */
+        val line: String get() {
+            val short = if (aqi in 101..150) "Unhealthy (sensitive)" else level
+            return "AQI $aqi · $short" + (pm25?.let { " · PM2.5 ${it.roundToInt()}" } ?: "")
+        }
+    }
+
+    fun air(c: Context): Air? {
+        val raw = Store.prefs(c).getString(KA, null) ?: return null
+        return runCatching {
+            val o = JSONObject(raw)
+            val at = o.getLong("at")
+            if (System.currentTimeMillis() - at > MAX_AGE) return null
+            Air(o.getInt("aqi"), o.optDouble("pm25", Double.NaN).takeIf { !it.isNaN() }, at)
+        }.getOrNull()
+    }
+
+    /** Air quality from Open-Meteo (CAMS global model, CC BY 4.0). Same rounded location, no key. */
+    fun fetchAir(c: Context): Boolean {
+        val lat = String.format(Locale.US, "%.4f", Config.LATITUDE)
+        val lon = String.format(Locale.US, "%.4f", Config.LONGITUDE)
+        val url = URL("https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lon&current=us_aqi,pm2_5")
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            setRequestProperty("User-Agent", "GlanceKit/1 github.com/Athulsn10/glance-kit")
+        }
+        return try {
+            if (conn.responseCode != 200) return false
+            val cur = JSONObject(conn.inputStream.bufferedReader().use { it.readText() }).getJSONObject("current")
+            if (cur.isNull("us_aqi")) return false
+            val o = JSONObject().apply {
+                put("at", System.currentTimeMillis())
+                put("aqi", cur.getDouble("us_aqi").roundToInt())
+                if (!cur.isNull("pm2_5")) put("pm25", cur.getDouble("pm2_5"))
+            }
+            Store.prefs(c).edit().putString(KA, o.toString()).apply()
+            true
+        } catch (e: Exception) {
+            android.util.Log.w("GlanceKit", "Air quality fetch failed", e)
+            false
+        } finally {
+            conn.disconnect()
+        }
+    }
     private const val MAX_AGE = 3 * 60 * 60 * 1000L // older than this: don't show it
 
     /** Latest saved weather, or null if there's none recent enough. */
@@ -188,7 +253,8 @@ object Weather {
 
     /** Fetch soon (e.g. just after the widget is added), if the saved weather is older than 20 minutes. */
     fun refreshSoon(c: Context) {
-        val at = runCatching { JSONObject(Store.prefs(c).getString(K, "{}")!!).optLong("at", 0) }.getOrDefault(0L)
+        fun savedAt(key: String) = runCatching { JSONObject(Store.prefs(c).getString(key, "{}")!!).optLong("at", 0) }.getOrDefault(0L)
+        val at = minOf(savedAt(K), savedAt(KA)) // the older of weather and air quality
         if (System.currentTimeMillis() - at < 20 * 60_000) return
         val net = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         val req = OneTimeWorkRequestBuilder<WeatherWorker>().setConstraints(net).build()
@@ -207,6 +273,7 @@ class WeatherWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ct
         val c = applicationContext
         if (!Weather.wanted(c)) { Weather.cancel(c); return Result.success() }
         val ok = Weather.fetch(c)
+        runCatching { Weather.fetchAir(c) }
         refreshAll(c)
         return if (ok || runAttemptCount >= 2) Result.success() else Result.retry()
     }

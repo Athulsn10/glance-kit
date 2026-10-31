@@ -158,6 +158,8 @@ class MainActivity : Activity(), SensorEventListener {
         main.postDelayed(phoneTick, 60_000)
         // Keep the live compass widget running (the app being open lets it start).
         if (CompassService.isLive(this)) CompassService.start(this)
+        // Weather and air quality: top up if they're getting old (no-op otherwise).
+        io.execute { runCatching { if (Weather.wanted(applicationContext)) Weather.refreshSoon(applicationContext) } }
     }
 
     override fun onPause() {
@@ -987,11 +989,15 @@ class MainActivity : Activity(), SensorEventListener {
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context,
                 "Everything is read on your phone. No accounts, no tracking. The only thing sent out is your rough location " +
-                    "(the same one used for sunrise), to MET Norway for the Clock widget's weather.",
+                    "(the same one used for sunrise), to MET Norway and Open-Meteo for the Clock widget's weather and air quality.",
                 13f, Ui.FAINT))
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context, "Weather data: MET Norway (api.met.no), CC BY 4.0.", 12f, Ui.FAINT).apply {
                 setOnClickListener { openUrl("https://api.met.no/doc/License") }
+            })
+            addView(Ui.text(context, "Air quality: Open-Meteo.com, using Copernicus CAMS data, CC BY 4.0.", 12f, Ui.FAINT).apply {
+                setPadding(0, Ui.dp(context, 4), 0, 0)
+                setOnClickListener { openUrl("https://open-meteo.com/en/docs/air-quality-api") }
             })
             addView(Ui.spacer(context, 8))
             fun link(icon: Int, title: String, sub: String, onClick: () -> Unit) {
