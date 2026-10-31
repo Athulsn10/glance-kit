@@ -23,7 +23,7 @@ import kotlin.math.roundToInt
 /**
  * Weather from MET Norway's free forecast service (api.met.no, CC BY 4.0).
  * Fetched about every 30 minutes, only with a connection, and kept on the phone between fetches.
- * Only the rounded coordinates from Config are sent.
+ * Only your approximate location (rounded to about 1 km, see Place) is sent.
  */
 object Weather {
 
@@ -90,8 +90,9 @@ object Weather {
 
     /** Air quality from Open-Meteo (CAMS global model, CC BY 4.0). Same rounded location, no key. */
     fun fetchAir(c: Context): Boolean {
-        val lat = String.format(Locale.US, "%.4f", Config.LATITUDE)
-        val lon = String.format(Locale.US, "%.4f", Config.LONGITUDE)
+        Place.ensureLoaded(c)
+        val lat = String.format(Locale.US, "%.4f", Place.latitude)
+        val lon = String.format(Locale.US, "%.4f", Place.longitude)
         val url = URL("https://air-quality-api.open-meteo.com/v1/air-quality?latitude=$lat&longitude=$lon&current=us_aqi,pm2_5")
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
@@ -142,8 +143,9 @@ object Weather {
 
     /** Download and save the current forecast. Returns true on success. Runs off the main thread. */
     fun fetch(c: Context): Boolean {
-        val lat = String.format(Locale.US, "%.4f", Config.LATITUDE)
-        val lon = String.format(Locale.US, "%.4f", Config.LONGITUDE)
+        Place.ensureLoaded(c)
+        val lat = String.format(Locale.US, "%.4f", Place.latitude)
+        val lon = String.format(Locale.US, "%.4f", Place.longitude)
         val url = URL("https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=$lat&lon=$lon")
         val conn = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
@@ -259,6 +261,14 @@ object Weather {
         val net = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         val req = OneTimeWorkRequestBuilder<WeatherWorker>().setConstraints(net).build()
         WorkManager.getInstance(c).enqueueUniqueWork(ONCE, ExistingWorkPolicy.KEEP, req)
+    }
+
+    /** Fetch right away (e.g. after the location changed). */
+    fun refreshNow(c: Context) {
+        if (!wanted(c)) return
+        val net = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val req = OneTimeWorkRequestBuilder<WeatherWorker>().setConstraints(net).build()
+        WorkManager.getInstance(c).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, req)
     }
 
     fun cancel(c: Context) {

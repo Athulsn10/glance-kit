@@ -38,14 +38,15 @@
 <main>
   <div class="eyebrow">Glance Kit</div>
   <h1>Privacy Policy</h1>
-  <p class="muted">Effective 31 October 2026 · App package <code>com.athulsn10.glancekit</code></p>
+  <p class="muted">Effective 31 October 2026 (updated for approximate location) · App package <code>com.athulsn10.glancekit</code></p>
 
   <div class="summary">
     <strong>In short</strong>
     <ul>
       <li>Glance Kit has no accounts, no ads, no analytics and no tracking.</li>
       <li>Almost everything is read and kept on your phone. It never leaves it.</li>
-      <li>The only data sent anywhere is a fixed approximate location, sent to two weather services so the Clock widget can show weather and air quality.</li>
+      <li>If you allow it, the app uses your <strong>approximate</strong> location (never GPS), rounded to about 1&nbsp;km, for sunrise, sunset, weather and air quality.</li>
+      <li>The only data sent anywhere is that approximate location, sent to two weather services so the Clock widget can show weather and air quality.</li>
       <li>Uninstalling the app removes everything it stored.</li>
     </ul>
   </div>
@@ -65,10 +66,15 @@
     <tr><td>App usage (which apps you used and for how long), app storage sizes and cache sizes</td><td>Screen time, most-used apps, storage and cache cards. Only if you grant Usage access.</td></tr>
     <tr><td>Memory (RAM) use, storage space and similar phone details</td><td>Phone tab</td></tr>
     <tr><td>Your next alarm time</td><td>Clock widget</td></tr>
+    <tr><td>Approximate location (optional), rounded to about 1&nbsp;km</td><td>Sunrise, sunset, golden hour, sun and moon position, weather and air quality</td></tr>
     <tr><td>Focus timer sessions and settings you choose</td><td>Focus timer, streaks and charts</td></tr>
   </table>
   </div>
-  <p>Glance Kit does <strong>not</strong> access your contacts, messages, photos, files' contents, microphone, camera or GPS location.</p>
+  <p>Glance Kit does <strong>not</strong> access your contacts, messages, photos, files' contents, microphone, camera or precise (GPS) location.</p>
+
+  <h2>Location</h2>
+  <p>Location is optional. If you allow <strong>approximate location</strong>, Android gives the app a coarse position based on Wi-Fi and mobile networks, never GPS. The app rounds it to about 1&nbsp;km and stores it on your phone. It's only updated while the app is open, never in the background. The app doesn't keep a history of places, and it doesn't track your movements.</p>
+  <p>If you don't allow location, the app uses a built-in default location instead. You can turn location off at any time in Setup or in Android Settings. Once it's off, the app goes back to the default location.</p>
 
   <h2>Data sent off your phone</h2>
   <p>The Clock widget and the Clock page of the all-in-one widget show weather and air quality. To get them, the app sends requests to two services:</p>
@@ -76,7 +82,7 @@
     <li><strong>MET Norway</strong> (<a href="https://api.met.no">api.met.no</a>) for the weather forecast.</li>
     <li><strong>Open-Meteo</strong> (<a href="https://open-meteo.com">open-meteo.com</a>) for air quality.</li>
   </ul>
-  <p>Each request contains only a <strong>fixed approximate location</strong> set in the app. This is the same location used to work out sunrise and sunset. It is <strong>not</strong> read from your phone's GPS. Like any internet request, these services can also see your IP address. They receive no other information about you or your phone.</p>
+  <p>Each request contains only your <strong>approximate location</strong>, rounded to about 1&nbsp;km. This is your phone's approximate location if you've allowed it, or otherwise the built-in default. It is never precise or GPS location. Like any internet request, these services can also see your IP address. They receive no other information about you or your phone.</p>
   <p>These requests happen about every 30 minutes, and only while a Clock widget or Clock page is on your home screen. If you remove them, the requests stop. The results are stored on your phone so the widget can show them. How these services handle requests is covered by their own terms: <a href="https://api.met.no/doc/TermsOfService">MET Norway terms</a> and <a href="https://open-meteo.com/en/terms">Open-Meteo terms</a>.</p>
   <p>Weather data comes from MET Norway, and air-quality data from Open-Meteo using Copernicus CAMS data. Both are licensed under CC BY 4.0.</p>
 
@@ -85,6 +91,7 @@
   <table>
     <tr><th>Permission</th><th>Used for</th></tr>
     <tr><td>Physical activity</td><td>Reading the step sensor</td></tr>
+    <tr><td>Approximate location (optional)</td><td>Sunrise, sunset, weather and air quality for where you are. Foreground only, never GPS.</td></tr>
     <tr><td>Usage access (optional)</td><td>Screen time, most-used apps, app storage and cache sizes, and full-day data use</td></tr>
     <tr><td>Notifications</td><td>The quiet notification shown while the live compass widget is on</td></tr>
     <tr><td>Foreground service</td><td>Keeping the live compass widget turning while the screen is on</td></tr>

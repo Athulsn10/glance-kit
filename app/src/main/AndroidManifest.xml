@@ -31,6 +31,8 @@
             <action android:name="android.intent.action.SHOW_ALARMS" />
         </intent>
     </queries>
+    <!-- Approximate location (never GPS) for sunrise, sunset, weather and air quality. Optional. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <!-- Weather for the Clock widget (MET Norway). Nothing else uses the internet. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Short buzz when a focus session ends. -->

@@ -126,12 +126,19 @@ class MainActivity : Activity(), SensorEventListener {
         if (start >= 0) pager.setCurrentItem(start, false)
         highlight(pager.currentItem)
 
-        // First launch: ask for step counting once.
+        // First launch: ask once for step counting and approximate location, in one prompt.
+        Place.load(this)
         val p = Store.prefs(this)
+        val ask = ArrayList<String>()
         if (StepCounter.available(this) && !StepCounter.granted(this) && !p.getBoolean("asked_steps", false)) {
-            p.edit().putBoolean("asked_steps", true).apply()
-            askForSteps()
+            p.edit().putBoolean("asked_steps", true).putBoolean("asked_steps_dialog", true).apply()
+            ask.add(Manifest.permission.ACTIVITY_RECOGNITION)
         }
+        if (!Place.granted(this) && !p.getBoolean("asked_location", false)) {
+            p.edit().putBoolean("asked_location", true).apply()
+            ask.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+        if (ask.isNotEmpty()) requestPermissions(ask.toTypedArray(), 1)
     }
 
     /** Opened again from a widget while already open: just switch tab. */
@@ -158,6 +165,7 @@ class MainActivity : Activity(), SensorEventListener {
         main.postDelayed(phoneTick, 60_000)
         // Keep the live compass widget running (the app being open lets it start).
         if (CompassService.isLive(this)) CompassService.start(this)
+        refreshPlace()
         // Weather and air quality: top up if they're getting old (no-op otherwise).
         io.execute { runCatching { if (Weather.wanted(applicationContext)) Weather.refreshSoon(applicationContext) } }
     }
@@ -236,7 +244,22 @@ class MainActivity : Activity(), SensorEventListener {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (Manifest.permission.ACCESS_COARSE_LOCATION in permissions) refreshPlace(force = true)
         reload(alsoWidgets = true)
+    }
+
+    /**
+     * Update the approximate location while the app is open (at most every 30 minutes).
+     * If it moved, redraw the widgets and fetch weather for the new place.
+     */
+    private fun refreshPlace(force: Boolean = false) {
+        if (!Place.granted(this)) return
+        if (!force && System.currentTimeMillis() - Place.updatedAt(this) < 30 * 60_000) return
+        Place.refresh(applicationContext) { moved ->
+            if (!moved) return@refresh
+            Weather.refreshNow(applicationContext)
+            main.post { reload(alsoWidgets = true) }
+        }
     }
 
     // ---------------- Pages ----------------
@@ -969,6 +992,18 @@ class MainActivity : Activity(), SensorEventListener {
             row("Usage access", Collect.hasUsageAccess(context),
                 "Full-day data use, most-used apps, app storage and cache. If Android says \"App was denied access\", open App info, tap ⋮ > Allow restricted settings, and try again.",
                 "Allow usage access", "Turn off usage access") { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }
+            val loc = Place.granted(context)
+            row("Approximate location", loc,
+                if (loc && Place.isFromPhone(context)) "Sunrise, sunset, weather and air quality for where you are (${Place.label()}). Approximate only, rounded to about 1 km, and updated only while the app is open."
+                else "For sunrise, sunset, weather and air quality where you are. Approximate only, never GPS. Without it, a default location is used (${Place.label()}).",
+                "Allow approximate location", "Turn off location") {
+                if (loc) appInfo() else {
+                    if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) || !Store.prefs(context).getBoolean("asked_location_dialog", false)) {
+                        Store.prefs(context).edit().putBoolean("asked_location_dialog", true).apply()
+                        requestPermissions(arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION), 3)
+                    } else appInfo() // Android won't ask again: open the app's settings
+                }
+            }
             val notif = android.os.Build.VERSION.SDK_INT < 33 ||
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
             row("Notifications", notif, "Only for the live compass's quiet \"on\" notification.",
@@ -988,8 +1023,8 @@ class MainActivity : Activity(), SensorEventListener {
             addView(Ui.text(context, "Glance Kit $v", 15f, Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context,
-                "Everything is read on your phone. No accounts, no tracking. The only thing sent out is your rough location " +
-                    "(the same one used for sunrise), to MET Norway and Open-Meteo for the Clock widget's weather and air quality.",
+                "Everything is read on your phone. No accounts, no tracking. The only thing sent out is your approximate location " +
+                    "(rounded to about 1 km), to MET Norway and Open-Meteo for the Clock widget's weather and air quality.",
                 13f, Ui.FAINT))
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context, "Weather data: MET Norway (api.met.no), CC BY 4.0.", 12f, Ui.FAINT).apply {

@@ -2,9 +2,12 @@ package com.athulsn10.glancekit
 
 /** Things you might want to change. */
 object Config {
-    /** Location for sunrise and sunset. No location permission needed. */
-    const val LATITUDE = 10.5276
-    const val LONGITUDE = 76.2144
+    /**
+     * Fallback location for sunrise, sunset and weather, used until you allow approximate
+     * location (Setup > Permissions). See [Place].
+     */
+    const val DEFAULT_LATITUDE = 10.5276
+    const val DEFAULT_LONGITUDE = 76.2144
 
     /** Accent colour (ARGB). */
     val ACCENT: Int = 0xFFFF6A3D.toInt()

@@ -25,6 +25,10 @@ Open Glance Kit for a swipeable dashboard: **Today · Steps · Battery · Data �
 Each tab has a large ring, more metrics than fit on a widget, and full-size charts. Instruments has a live compass;
 Setup adds widgets and manages permissions.
 
+**Location:** sunrise, sunset, weather and air quality use your phone's *approximate* location if you allow it
+(never GPS, rounded to about 1 km, updated only while the app is open). Without it, a default location is used.
+See the [privacy policy](https://athulsn10.github.io/glance-kit/privacy.html).
+
 ### Glass Ring
 
 | Page | Shows | Tap the ring to |
@@ -91,7 +95,7 @@ Settings live in [`Config.kt`](app/src/main/java/com/athulsn10/glancekit/Config.
 
 | Setting | Purpose | Default |
 |---|---|---|
-| `LATITUDE`, `LONGITUDE` | Location used to calculate sunrise and sunset | Thrissur, India |
+| `DEFAULT_LATITUDE`, `DEFAULT_LONGITUDE` | Fallback location for sunrise, sunset and weather, used until you allow approximate location | Thrissur, India |
 | `ACCENT` | Accent colour (ARGB) | `#FF6A3D` |
 | `FOCUS_MINUTES` | Length of a focus session | 25 |
 | `CHARGE_LIMIT` | Charge limit marked on the battery ring. Set to 100 if you don't limit charging. | 80 |

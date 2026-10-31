@@ -70,7 +70,7 @@ object Device {
 
     fun sky(): Sky {
         val zone = ZoneId.systemDefault()
-        val (rise, set) = Sun.times(LocalDate.now(), Config.LATITUDE, Config.LONGITUDE, zone)
+        val (rise, set) = Sun.times(LocalDate.now(), Place.latitude, Place.longitude, zone)
         val now = LocalTime.now()
         val length = if (rise != null && set != null) Duration.between(rise, set) else null
         val left = when {
@@ -97,12 +97,12 @@ object Device {
             0.002697 * cos(3 * gamma) + 0.00148 * kotlin.math.sin(3 * gamma)
         val offsetMin = now.offset.totalSeconds / 60.0
         val minutes = now.hour * 60 + now.minute + now.second / 60.0
-        val trueSolar = minutes + eqTime + 4 * Config.LONGITUDE - offsetMin
+        val trueSolar = minutes + eqTime + 4 * Place.longitude - offsetMin
         val ha = Math.toRadians(trueSolar / 4 - 180)
-        val lat = Math.toRadians(Config.LATITUDE)
+        val lat = Math.toRadians(Place.latitude)
         val cosZen = kotlin.math.sin(lat) * kotlin.math.sin(decl) + cos(lat) * cos(decl) * cos(ha)
         val elev = 90 - Math.toDegrees(kotlin.math.acos(cosZen.coerceIn(-1.0, 1.0)))
-        val noonMin = 720 - 4 * Config.LONGITUDE - eqTime + offsetMin
+        val noonMin = 720 - 4 * Place.longitude - eqTime + offsetMin
         val noon = runCatching { LocalTime.ofSecondOfDay(((noonMin * 60).toLong()).coerceIn(0, 86_399)) }.getOrNull()
         return SunNow(elev, noon, elev > -0.833)
     }

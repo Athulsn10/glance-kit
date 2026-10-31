@@ -95,6 +95,7 @@ object Collect {
 
     /** Locked so the app and the widgets never sample the counters at the same time. */
     fun snapshot(c: Context): Snapshot = synchronized(updateLock) {
+        Place.ensureLoaded(c)
         val battery = battery(c)
         Sampler.sample(c, battery)
         StepCounter.sample(c)
@@ -155,13 +156,13 @@ object Collect {
             else -> {
                 val leftMin = ((86_400 - sod) / 60).toLong()
                 val zone = ZoneId.systemDefault()
-                val (rise, set) = Sun.times(date, Config.LATITUDE, Config.LONGITUDE, zone)
+                val (rise, set) = Sun.times(date, Place.latitude, Place.longitude, zone)
                 val nowT = now.toLocalTime()
                 val sub = when {
                     rise != null && nowT.isBefore(rise) -> "Sunrise at ${fmtClock(rise)}"
                     set != null && nowT.isBefore(set) -> "Sunset in ${fmtMinutes(Duration.between(nowT, set).toMinutes())}"
                     else -> {
-                        val tomorrow = Sun.times(date.plusDays(1), Config.LATITUDE, Config.LONGITUDE, zone).first
+                        val tomorrow = Sun.times(date.plusDays(1), Place.latitude, Place.longitude, zone).first
                         if (tomorrow != null) "Sunrise at ${fmtClock(tomorrow)}" else "Wind down"
                     }
                 }

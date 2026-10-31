@@ -62,6 +62,7 @@ object ClockViews {
         AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, ClockWidget::class.java))
 
     fun update(c: Context) {
+        Place.ensureLoaded(c)
         val mgr = AppWidgetManager.getInstance(c)
         for (id in ids(c)) {
             val w = mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 280)
@@ -78,6 +79,7 @@ object ClockViews {
 
     /** The Clock page on the all-in-one widget. */
     fun page(c: Context): RemoteViews {
+        Place.ensureLoaded(c)
         val rv = RemoteViews(c.packageName, R.layout.page_clock)
         fill(c, rv, 300f, 64f, 36f, 152)
         return rv
