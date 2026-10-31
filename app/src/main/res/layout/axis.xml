@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Axis labels under a chart: 4 left-aligned quarters, or 7 centred day columns. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="3dp">
+
+    <LinearLayout
+        android:id="@+id/axis4"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <TextView android:id="@+id/a40" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="start" />
+        <TextView android:id="@+id/a41" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="start" />
+        <TextView android:id="@+id/a42" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="start" />
+        <TextView android:id="@+id/a43" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="start" />
+        <TextView android:id="@+id/a44" style="@style/Axis" android:layout_width="wrap_content" android:gravity="end" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/axis7"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <TextView android:id="@+id/a70" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+        <TextView android:id="@+id/a71" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+        <TextView android:id="@+id/a72" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+        <TextView android:id="@+id/a73" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+        <TextView android:id="@+id/a74" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+        <TextView android:id="@+id/a75" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+        <TextView android:id="@+id/a76" style="@style/Axis" android:layout_width="0dp" android:layout_weight="1" android:gravity="center" />
+    </LinearLayout>
+</FrameLayout>

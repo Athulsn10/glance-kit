@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget shell. The header (title, arrows, dots) lives here so page switches are a tiny partial
+  update; the four pages are added to the flipper on each full refresh.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:fontFamily="monospace"
+            android:letterSpacing="0.12"
+            android:maxLines="1"
+            android:text="TODAY"
+            android:textColor="#FF8A8A8A"
+            android:textSize="11sp" />
+
+        <ImageView
+            android:id="@+id/prev"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/nav_btn"
+            android:contentDescription="Previous page"
+            android:padding="9dp"
+            android:src="@drawable/ic_chevron_left" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView android:id="@+id/dot0" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="2dp" android:layout_marginEnd="2dp" android:src="@drawable/dot_on"
+                android:contentDescription="Page 1" />
+            <ImageView android:id="@+id/dot1" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="2dp" android:layout_marginEnd="2dp" android:src="@drawable/dot_off"
+                android:contentDescription="Page 2" />
+            <ImageView android:id="@+id/dot2" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="2dp" android:layout_marginEnd="2dp" android:src="@drawable/dot_off"
+                android:contentDescription="Page 3" />
+            <ImageView android:id="@+id/dot3" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginStart="2dp" android:layout_marginEnd="2dp" android:src="@drawable/dot_off"
+                android:contentDescription="Page 4" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/next"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="@drawable/nav_btn"
+            android:contentDescription="Next page"
+            android:padding="9dp"
+            android:src="@drawable/ic_chevron_right" />
+    </LinearLayout>
+
+    <!-- All four pages live here; switching is a one-line partial update with a quick fade. -->
+    <ViewFlipper
+        android:id="@+id/flipper"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="4dp"
+        android:animateFirstView="false"
+        android:inAnimation="@anim/page_in"
+        android:outAnimation="@anim/page_out" />
+</LinearLayout>

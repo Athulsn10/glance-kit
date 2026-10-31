@@ -1,7 +1,6 @@
 # Glance Kit
 
-A collection of minimal home screen widgets for Android, built with
-[Jetpack Glance](https://developer.android.com/develop/ui/compose/glance).
+A collection of minimal home screen widgets for Android, built on Android's native widget views.
 
 Every widget reads its data directly from the device. No accounts, no sign-in, no internet access.
 
@@ -17,13 +16,13 @@ More widgets will be added over time.
 
 | Page | Shows | Tap the ring to |
 |---|---|---|
-| Time | Progress through the day with sunrise and sunset markers | Switch between day, week, month and year |
-| Battery | Level, charging speed, time to charge limit, estimated health, cycle count, temperature, 24-hour level chart | Switch between the chart and stats |
+| Time | Progress through the day, with a daylight chart and sunrise and sunset times | Switch between day, week, month and year |
+| Battery | Level, charging speed, time to charge limit, estimated health, cycle count, temperature, 24-hour level chart | Refresh |
 | Data | Mobile and Wi-Fi data used, with an hourly chart | Switch between today and the last 7 days |
 | Focus | Countdown timer, time focused today, streak, 7-day chart | Start, pause or resume |
 
-Use the arrow buttons at the bottom of the widget to change page, or tap a dot to jump to one.
-While the phone is charging, the widget updates every minute.
+Use the arrow buttons in the widget's header to change page, or tap a dot to jump to one. Pages switch
+instantly with a short fade. While the phone is charging, the widget updates every minute.
 
 ## Requirements
 
@@ -79,7 +78,7 @@ Settings live in [`Config.kt`](app/src/main/java/com/glassring/widget/Config.kt)
 
 ```
 app/src/main/java/com/glassring/widget/
-├── RingWidget.kt     Widget layout, pages and tap actions
+├── Widget.kt         Widget provider, page layouts and tap actions
 ├── Collect.kt        Reads time, battery and data usage from the device
 ├── Sampler.kt        Records history for the charts and the health estimate
 ├── RingRenderer.kt   Draws the rings and charts as bitmaps
@@ -99,7 +98,7 @@ app/src/main/java/com/glassring/widget/
 
 ## Adding a widget
 
-1. Create a `GlanceAppWidget` and a `GlanceAppWidgetReceiver` for it.
+1. Create an `AppWidgetProvider` and its layouts in `app/src/main/res/layout/`.
 2. Add a provider file in `app/src/main/res/xml/` with its size and description.
 3. Register the receiver in `AndroidManifest.xml` with its own label.
 4. Add a row to the widget table at the top of this README.

@@ -1,0 +1,385 @@
+package com.glassring.widget
+
+import android.app.PendingIntent
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProvider
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.os.SystemClock
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.view.View
+import android.widget.RemoteViews
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.TextStyle
+import java.util.Locale
+
+private const val ACTION_NEXT = "com.glassring.widget.NEXT"
+private const val ACTION_PREV = "com.glassring.widget.PREV"
+private const val ACTION_GOTO = "com.glassring.widget.GOTO"
+private const val ACTION_RING = "com.glassring.widget.RING"
+private const val ACTION_PLUS = "com.glassring.widget.PLUS"
+private const val ACTION_STOP = "com.glassring.widget.STOP"
+private const val EXTRA_PAGE = "page"
+
+private const val RING_DP = 76f
+private const val CHART_W_DP = 320f
+private const val CHART_H_DP = 44f
+
+private val DOTS = intArrayOf(R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3)
+private val AXIS4 = intArrayOf(R.id.a40, R.id.a41, R.id.a42, R.id.a43, R.id.a44)
+private val AXIS7 = intArrayOf(R.id.a70, R.id.a71, R.id.a72, R.id.a73, R.id.a74, R.id.a75, R.id.a76)
+
+private fun widgetIds(c: Context): IntArray =
+    AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, RingWidgetReceiver::class.java))
+
+/** Full redraw of every copy of the widget with fresh data. Called on taps, timers and charging ticks. */
+fun refreshAll(c: Context) {
+    val ids = widgetIds(c)
+    if (ids.isEmpty()) return
+    val s = Collect.snapshot(c)
+    AppWidgetManager.getInstance(c).updateAppWidget(ids, Views.root(c, s))
+}
+
+/**
+ * Page switch. Only the visible page, title and dots change, sent as a tiny partial update.
+ * All pages are already on the home screen, so this is instant and fades between them.
+ */
+fun showPage(c: Context, page: Int) {
+    Store.setPage(c, page)
+    val ids = widgetIds(c)
+    if (ids.isEmpty()) return
+    val p = Store.page(c)
+    val rv = RemoteViews(c.packageName, R.layout.widget_root)
+    rv.setDisplayedChild(R.id.flipper, p)
+    Views.header(rv, p, Views.titleFor(c, p))
+    AppWidgetManager.getInstance(c).partiallyUpdateAppWidget(ids, rv)
+}
+
+class RingWidgetReceiver : AppWidgetProvider() {
+
+    override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
+        refreshAll(context)
+        RefreshWorker.schedule(context)
+    }
+
+    override fun onEnabled(context: Context) {
+        RefreshWorker.schedule(context)
+    }
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        when (intent.action) {
+            ACTION_NEXT -> showPage(context, Store.page(context) + 1)
+            ACTION_PREV -> showPage(context, Store.page(context) - 1)
+            ACTION_GOTO -> showPage(context, intent.getIntExtra(EXTRA_PAGE, 0))
+            ACTION_RING -> {
+                when (Store.page(context)) {
+                    Store.PAGE_TIME -> Store.cycleTimeMode(context)
+                    Store.PAGE_DATA -> Store.toggleDataWeek(context)
+                    Store.PAGE_FOCUS -> Focus.toggle(context)
+                    else -> Unit // battery: tap just refreshes
+                }
+                refreshAll(context)
+            }
+            ACTION_PLUS -> {
+                Focus.addFiveMinutes(context)
+                refreshAll(context)
+            }
+            ACTION_STOP -> {
+                Focus.stop(context)
+                refreshAll(context)
+            }
+        }
+    }
+}
+
+/** Builds the RemoteViews for the widget and its four pages. */
+object Views {
+
+    private const val WHITE = 0xFFFFFFFF.toInt()
+    private const val GREY = 0xFF8A8A8A.toInt()
+
+    fun root(c: Context, s: Snapshot): RemoteViews {
+        val rv = RemoteViews(c.packageName, R.layout.widget_root)
+        rv.removeAllViews(R.id.flipper)
+        rv.addView(R.id.flipper, timePage(c, s))
+        rv.addView(R.id.flipper, batteryPage(c, s))
+        rv.addView(R.id.flipper, dataPage(c, s))
+        rv.addView(R.id.flipper, focusPage(c, s))
+        rv.setDisplayedChild(R.id.flipper, s.page)
+        header(rv, s.page, titleFor(s, s.page))
+        rv.setOnClickPendingIntent(R.id.prev, broadcast(c, ACTION_PREV, 1))
+        rv.setOnClickPendingIntent(R.id.next, broadcast(c, ACTION_NEXT, 2))
+        for (i in DOTS.indices) {
+            rv.setOnClickPendingIntent(DOTS[i], broadcast(c, ACTION_GOTO, 10 + i) { putExtra(EXTRA_PAGE, i) })
+        }
+        return rv
+    }
+
+    fun header(rv: RemoteViews, page: Int, title: String) {
+        rv.setTextViewText(R.id.title, title)
+        for (i in DOTS.indices) {
+            rv.setImageViewResource(DOTS[i], if (i == page) R.drawable.dot_on else R.drawable.dot_off)
+        }
+    }
+
+    fun titleFor(s: Snapshot, page: Int): String = when (page) {
+        Store.PAGE_BATTERY -> batteryTitle(s.battery)
+        Store.PAGE_DATA -> if (s.dataWeek) "DATA · LAST 7 DAYS" else "DATA · TODAY"
+        Store.PAGE_FOCUS -> focusTitle(s.focus)
+        else -> s.time.label
+    }
+
+    /** Cheap version for page switches: reads only what the title needs. */
+    fun titleFor(c: Context, page: Int): String = when (page) {
+        Store.PAGE_BATTERY -> batteryTitle(Collect.battery(c))
+        Store.PAGE_DATA -> if (Store.dataWeek(c)) "DATA · LAST 7 DAYS" else "DATA · TODAY"
+        Store.PAGE_FOCUS -> focusTitle(Collect.focus(c))
+        else -> Collect.time(c).label
+    }
+
+    private fun batteryTitle(b: BatteryInfo) = when {
+        b.charging -> "BATTERY · CHARGING"
+        b.plugged -> "BATTERY · PLUGGED IN"
+        else -> "BATTERY · ${b.thermal.uppercase()}"
+    }
+
+    private fun focusTitle(f: FocusInfo) = when {
+        f.running -> "FOCUS · SESSION ${f.sessions + 1}"
+        f.paused -> "FOCUS · PAUSED"
+        f.streak > 1 -> "FOCUS · ${f.streak}-DAY STREAK"
+        else -> "FOCUS"
+    }
+
+    // ---------------- Pages ----------------
+
+    private fun timePage(c: Context, s: Snapshot): RemoteViews {
+        val t = s.time
+        val rv = RemoteViews(c.packageName, R.layout.page_main)
+        val markers = listOfNotNull(t.sunrise, t.sunset)
+        rv.setImageViewBitmap(
+            R.id.ring,
+            RingRenderer.ring(c, RING_DP, listOf(RingRenderer.Arc(0f, t.fraction, WHITE)), markers = markers),
+        )
+        rv.setTextViewText(R.id.ring_value, number("${(t.fraction * 100).toInt()}", "%"))
+        rv.setTextViewText(R.id.ring_caption, t.caption)
+        rv.setTextViewText(R.id.headline, t.headline)
+        rv.setTextViewText(R.id.sub, t.sub)
+        val today = LocalDate.now()
+        when (t.mode) {
+            0 -> {
+                val rise = t.sunrise?.let { clock(it) }
+                val set = t.sunset?.let { clock(it) }
+                rv.setTextViewText(R.id.detail, if (rise != null && set != null) "Sunrise $rise · Sunset $set" else "")
+                chart(rv, RingRenderer.daylight(c, CHART_W_DP, CHART_H_DP, t.fraction, t.sunrise, t.sunset))
+                axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
+            }
+            1 -> {
+                rv.setTextViewText(R.id.detail, "Week of ${today.minusDays(today.dayOfWeek.value - 1L).format(dayMonth)}")
+                chart(rv, RingRenderer.segments(c, CHART_W_DP, CHART_H_DP, 7, t.fraction))
+                axis7(rv, Array(7) { java.time.DayOfWeek.of(it + 1).getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase() })
+            }
+            2 -> {
+                val len = today.lengthOfMonth()
+                rv.setTextViewText(R.id.detail, today.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH) + " ${today.year}")
+                chart(rv, RingRenderer.segments(c, CHART_W_DP, CHART_H_DP, len, t.fraction))
+                axis4(rv, "1", "${1 + len / 4}", "${1 + len / 2}", "${1 + 3 * len / 4}", "$len")
+            }
+            else -> {
+                rv.setTextViewText(R.id.detail, "Week ${today.get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR)} of 52")
+                chart(rv, RingRenderer.segments(c, CHART_W_DP, CHART_H_DP, 12, t.fraction))
+                axis4(rv, "JAN", "APR", "JUL", "OCT", "DEC")
+            }
+        }
+        ringClick(c, rv)
+        return rv
+    }
+
+    private fun batteryPage(c: Context, s: Snapshot): RemoteViews {
+        val b = s.battery
+        val rv = RemoteViews(c.packageName, R.layout.page_main)
+        rv.setImageViewBitmap(
+            R.id.ring,
+            RingRenderer.ring(
+                c, RING_DP,
+                listOf(RingRenderer.Arc(0f, b.level / 100f, if (b.plugged) Config.ACCENT else WHITE)),
+                markers = if (b.target < 100) listOf(b.target / 100f) else emptyList(),
+            ),
+        )
+        rv.setTextViewText(R.id.ring_value, number("${b.level}", "%"))
+        rv.setTextViewText(R.id.ring_caption, if (b.charging) "CHARGING" else if (b.plugged) "PLUGGED" else "BATTERY")
+        rv.setTextViewText(
+            R.id.headline,
+            when {
+                b.charging && b.watts != null && b.watts >= 0.5 -> String.format(Locale.ENGLISH, "+%.1f W", b.watts)
+                b.plugged -> "Held at ${b.level}%"
+                b.minutesLeft != null -> "${Collect.fmtMinutes(b.minutesLeft.toLong())} left"
+                else -> "${b.level}%"
+            },
+        )
+        rv.setTextViewText(
+            R.id.sub,
+            when {
+                b.minutesToTarget != null -> "${b.target}% in ${Collect.fmtMinutes(b.minutesToTarget.toLong())}"
+                b.charging -> "Charging to ${b.target}%"
+                b.plugged -> "Charging paused to protect the battery"
+                else -> "At current use"
+            },
+        )
+        val parts = mutableListOf<String>()
+        parts += b.healthPct?.let { "Health ~$it%" } ?: "Health: measuring"
+        b.cycles?.let { parts += "$it cycles" }
+        parts += "${b.tempC.toInt()}°C"
+        rv.setTextViewText(R.id.detail, parts.joinToString(" · "))
+        chart(rv, RingRenderer.batteryHistory(c, CHART_W_DP, CHART_H_DP, s.batteryHistory, b.target))
+        axis4(rv, "24H AGO", "18H", "12H", "6H", "NOW")
+        ringClick(c, rv)
+        return rv
+    }
+
+    private fun dataPage(c: Context, s: Snapshot): RemoteViews {
+        val d = s.data
+        val rv = RemoteViews(c.packageName, R.layout.page_main)
+        val m = if (s.dataWeek) d.weekMobile.sum() else d.mobileBytes
+        val w = if (s.dataWeek) d.weekWifi.sum() else d.wifiBytes
+        val total = (m + w).coerceAtLeast(1)
+        val mf = m.toFloat() / total
+        val gap = if (m > 0 && w > 0) 0.03f else 0f
+        rv.setImageViewBitmap(
+            R.id.ring,
+            RingRenderer.ring(
+                c, RING_DP,
+                listOf(
+                    RingRenderer.Arc(0f, (mf - gap).coerceAtLeast(0f), Config.ACCENT),
+                    RingRenderer.Arc(mf, (1f - mf - gap).coerceAtLeast(0f), WHITE),
+                ),
+                head = false,
+            ),
+        )
+        val pct = if (m + w > 0) (m * 100 / (m + w)).toInt() else 0
+        rv.setTextViewText(R.id.ring_value, number("$pct", "%"))
+        rv.setTextViewText(R.id.ring_caption, "MOBILE")
+        rv.setTextViewText(R.id.headline, Collect.fmtBytes(m))
+        rv.setTextViewText(R.id.sub, if (s.dataWeek) "mobile data this week" else "mobile data today")
+        rv.setTextViewText(
+            R.id.detail,
+            "${Collect.fmtBytes(w)} on Wi-Fi" + if (!d.accurate && !s.dataWeek) " · since install" else "",
+        )
+        if (s.dataWeek) {
+            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, d.weekMobile, d.weekWifi))
+            axis7(rv, lastSevenDayNames())
+        } else {
+            chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, d.hourlyMobile, d.hourlyWifi, lastIndex = d.currentHour))
+            axis4(rv, "12 AM", "6 AM", "12 PM", "6 PM", "")
+        }
+        ringClick(c, rv)
+        return rv
+    }
+
+    private fun focusPage(c: Context, s: Snapshot): RemoteViews {
+        val f = s.focus
+        val rv = RemoteViews(c.packageName, R.layout.page_focus)
+        val frac = if (f.left > 0 && f.length > 0) f.left.toFloat() / f.length else 0f
+        rv.setImageViewBitmap(
+            R.id.ring,
+            RingRenderer.ring(c, RING_DP, listOf(RingRenderer.Arc(0f, frac, Config.ACCENT)), head = frac > 0f, dottedTrack = true),
+        )
+        if (f.running) {
+            rv.setViewVisibility(R.id.chrono, View.VISIBLE)
+            rv.setViewVisibility(R.id.ring_value, View.GONE)
+            rv.setChronometer(R.id.chrono, SystemClock.elapsedRealtime() + f.left, null, true)
+            rv.setChronometerCountDown(R.id.chrono, true)
+            rv.setTextViewText(R.id.ring_caption, "LEFT")
+        } else {
+            rv.setViewVisibility(R.id.chrono, View.GONE)
+            rv.setViewVisibility(R.id.ring_value, View.VISIBLE)
+            rv.setTextViewText(R.id.ring_value, mmss(if (f.paused) f.left else Config.FOCUS_MINUTES * 60_000L))
+            rv.setTextViewText(R.id.ring_caption, if (f.paused) "PAUSED" else "READY")
+        }
+        rv.setTextViewText(R.id.headline, Collect.fmtMinutes(f.todayMs / 60_000L))
+        rv.setTextViewText(
+            R.id.sub,
+            "focused today" + if (f.sessions > 0) " · ${f.sessions} done" else "",
+        )
+        val primary: String
+        val secondary: String?
+        val secondaryAction: String?
+        when {
+            f.running -> { primary = "Pause"; secondary = "+5 min"; secondaryAction = ACTION_PLUS }
+            f.paused -> { primary = "Resume"; secondary = "Stop"; secondaryAction = ACTION_STOP }
+            else -> { primary = "Start ${Config.FOCUS_MINUTES} min"; secondary = null; secondaryAction = null }
+        }
+        rv.setTextViewText(R.id.btn_primary, primary)
+        rv.setOnClickPendingIntent(R.id.btn_primary, broadcast(c, ACTION_RING, 30))
+        if (secondary != null && secondaryAction != null) {
+            rv.setViewVisibility(R.id.btn_secondary, View.VISIBLE)
+            rv.setTextViewText(R.id.btn_secondary, secondary)
+            rv.setOnClickPendingIntent(R.id.btn_secondary, broadcast(c, secondaryAction, 31))
+        } else {
+            rv.setViewVisibility(R.id.btn_secondary, View.GONE)
+        }
+        chart(rv, RingRenderer.bars(c, CHART_W_DP, CHART_H_DP, f.week, null, highlight = 6))
+        axis7(rv, lastSevenDayNames())
+        ringClick(c, rv)
+        return rv
+    }
+
+    // ---------------- Helpers ----------------
+
+    private val dayMonth = java.time.format.DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH)
+
+    private fun ringClick(c: Context, rv: RemoteViews) {
+        rv.setOnClickPendingIntent(R.id.ring_box, broadcast(c, ACTION_RING, 20))
+    }
+
+    private fun chart(rv: RemoteViews, bmp: Bitmap) = rv.setImageViewBitmap(R.id.chart, bmp)
+
+    private fun axis4(rv: RemoteViews, vararg labels: String) {
+        rv.setViewVisibility(R.id.axis4, View.VISIBLE)
+        rv.setViewVisibility(R.id.axis7, View.GONE)
+        for (i in AXIS4.indices) rv.setTextViewText(AXIS4[i], labels.getOrElse(i) { "" })
+    }
+
+    private fun axis7(rv: RemoteViews, labels: Array<String>) {
+        rv.setViewVisibility(R.id.axis4, View.GONE)
+        rv.setViewVisibility(R.id.axis7, View.VISIBLE)
+        for (i in AXIS7.indices) rv.setTextViewText(AXIS7[i], labels.getOrElse(i) { "" })
+    }
+
+    private fun lastSevenDayNames(): Array<String> {
+        val today = LocalDate.now()
+        return Array(7) { i ->
+            if (i == 6) "TODAY"
+            else today.minusDays(6L - i).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).uppercase()
+        }
+    }
+
+    /** "63%" with a smaller, softer unit. */
+    private fun number(value: String, unit: String): CharSequence {
+        val sp = SpannableString(value + unit)
+        if (unit.isNotEmpty()) {
+            sp.setSpan(RelativeSizeSpan(0.55f), value.length, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            sp.setSpan(ForegroundColorSpan(GREY), value.length, sp.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        return sp
+    }
+
+    private fun clock(fractionOfDay: Float): String =
+        Collect.fmtClock(LocalTime.ofSecondOfDay((fractionOfDay * 86_399).toLong().coerceIn(0, 86_399)))
+
+    private fun mmss(ms: Long): String {
+        val total = (ms / 1000).coerceAtLeast(0)
+        return String.format(Locale.ENGLISH, "%02d:%02d", total / 60, total % 60)
+    }
+
+    private fun broadcast(c: Context, action: String, code: Int, extras: Intent.() -> Unit = {}): PendingIntent {
+        val i = Intent(c, RingWidgetReceiver::class.java).setAction(action).apply(extras)
+        return PendingIntent.getBroadcast(c, code, i, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+    }
+}

@@ -40,15 +40,15 @@ jobs:
           name: GlanceKit-apk
           path: GlanceKit.apk
 
-      # Each build becomes a numbered release (v1.1.<run>) marked as latest, so this link
+      # Each build becomes a numbered release (v1.2.<run>) marked as latest, so this link
       # always gives the newest APK:
       # https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.1.${{ github.run_number }}
+          tag_name: v1.2.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          name: Glance Kit 1.1.${{ github.run_number }}
+          name: Glance Kit 1.2.${{ github.run_number }}
           body: |
             Download **GlanceKit.apk** on your phone and tap it to install. It installs over the previous version.
 
