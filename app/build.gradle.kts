@@ -19,6 +19,33 @@ val uploadProps = Properties().apply {
 fun upload(env: String, prop: String): String? = System.getenv(env) ?: uploadProps.getProperty(prop)
 val uploadStore = upload("UPLOAD_KEYSTORE_FILE", "storeFile")
 
+/*
+ * Firebase (People widget). Read from app/google-services.json when it's there, so the app still
+ * builds without it: People then shows "not set up". No Google Services Gradle plugin needed.
+ */
+val firebase: Map<String, String> = run {
+    val f = file("google-services.json")
+    if (!f.exists()) return@run emptyMap()
+    @Suppress("UNCHECKED_CAST")
+    val json = groovy.json.JsonSlurper().parse(f) as Map<String, Any?>
+    @Suppress("UNCHECKED_CAST")
+    val project = json["project_info"] as Map<String, Any?>
+    @Suppress("UNCHECKED_CAST")
+    val clients = json["client"] as List<Map<String, Map<String, Any?>>>
+    val client = clients.firstOrNull {
+        @Suppress("UNCHECKED_CAST")
+        (it["client_info"]?.get("android_client_info") as? Map<String, Any?>)?.get("package_name") == "com.athulsn10.glancekit"
+    } ?: return@run emptyMap()
+    @Suppress("UNCHECKED_CAST")
+    val keys = client["api_key"] as? List<Map<String, Any?>> ?: return@run emptyMap()
+    mapOf(
+        "PROJECT_ID" to project["project_id"].toString(),
+        "SENDER_ID" to project["project_number"].toString(),
+        "APP_ID" to client["client_info"]?.get("mobilesdk_app_id").toString(),
+        "API_KEY" to keys.first()["current_key"].toString(),
+    )
+}
+
 /* Version: one place, version.properties at the repo root. */
 val appVersionName: String = Properties().apply {
     rootProject.file("version.properties").inputStream().use { load(it) }
@@ -39,6 +66,10 @@ android {
         // From version.properties: 1.19.0 -> versionCode 11900.
         versionCode = appVersionCode
         versionName = appVersionName
+
+        for (k in listOf("PROJECT_ID", "SENDER_ID", "APP_ID", "API_KEY")) {
+            buildConfigField("String", "FIREBASE_$k", "\"${firebase[k] ?: ""}\"")
+        }
     }
 
     signingConfigs {
@@ -72,6 +103,10 @@ android {
         }
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -88,4 +123,12 @@ dependencies {
     implementation("androidx.viewpager2:viewpager2:1.1.0")
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // People widget: anonymous sign-in, a tiny database, push for hugs and pokes.
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-functions")
+    implementation("com.google.firebase:firebase-messaging")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 }

@@ -9,6 +9,8 @@
     <string name="w_today">Today</string>
     <string name="wd_today">Day progress, sunrise and sunset.</string>
     <string name="w_clock">Clock</string>
+    <string name="w_people">People</string>
+    <string name="wd_people">You and your partner, friend or family: how far apart, with hugs and pokes.</string>
     <string name="wd_clock">Time, next alarm, and the sun or moon as it is right now.</string>
     <string name="w_steps">Steps</string>
     <string name="wd_steps">Steps today towards your goal.</string>

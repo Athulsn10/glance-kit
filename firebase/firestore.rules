@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// Glance Kit People.
+// - groups/{gid}: written only by Cloud Functions (pairing, actions). Members can read it.
+// - groups/{gid}/members/{uid}: each person writes only their own profile and location.
+// - tokens/{uid}: push tokens, write-only for their owner, read only by Cloud Functions.
+// - invites/{code}: only Cloud Functions.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember(gid) {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/groups/$(gid)).data.members;
+    }
+
+    function validMember() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['name', 'avatar', 'lat', 'lon', 'at', 'paused', 'tz', 'atHome', 'mood', 'moodUntil'])
+        && d.name is string && d.name.size() <= 24
+        && d.avatar is map && d.avatar.size() <= 8
+        && (!('lat' in d) || (d.lat is number && d.lat >= -90 && d.lat <= 90))
+        && (!('lon' in d) || (d.lon is number && d.lon >= -180 && d.lon <= 180))
+        && (!('at' in d) || d.at is int)
+        && (!('paused' in d) || d.paused is bool)
+        && (!('tz' in d) || d.tz == null || (d.tz is string && d.tz.size() <= 64))
+        && (!('atHome' in d) || d.atHome is bool)
+        && (!('mood' in d) || d.mood == null || (d.mood is string && d.mood.size() <= 16))
+        && (!('moodUntil' in d) || d.moodUntil is int);
+    }
+
+    match /groups/{gid} {
+      allow read: if isMember(gid);
+      allow write: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(gid);
+        allow create, update: if isMember(gid) && request.auth.uid == uid && validMember();
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /tokens/{uid} {
+      allow read: if false;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['token', 'updatedAt'])
+        && request.resource.data.token is string && request.resource.data.token.size() < 512;
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

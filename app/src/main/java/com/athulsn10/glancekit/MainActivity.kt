@@ -1,5 +1,7 @@
 package com.athulsn10.glancekit
 
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import android.Manifest
 import android.app.Activity
 import android.appwidget.AppWidgetManager
@@ -44,7 +46,9 @@ import java.util.concurrent.Executors
  */
 class MainActivity : Activity(), SensorEventListener {
 
-    private val tabs = listOf("Today", "Steps", "Battery", "Data", "Focus", "Instruments", "Phone", "Setup")
+    private val tabs = listOf("Today", "Steps", "Battery", "Data", "Focus", "Instruments", "Phone", "People", "Setup")
+    private val peopleScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private var peopleSyncedAt = 0L
 
     private lateinit var pager: ViewPager2
     private lateinit var strip: LinearLayout
@@ -151,6 +155,7 @@ class MainActivity : Activity(), SensorEventListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        peopleScope.cancel()
         main.removeCallbacksAndMessages(null)
         io.shutdown()
         sm.unregisterListener(this)
@@ -160,6 +165,7 @@ class MainActivity : Activity(), SensorEventListener {
         super.onResume()
         resumed = true
         reload()
+        syncPeople()
         updateSensors()
         main.removeCallbacks(phoneTick)
         main.postDelayed(phoneTick, 60_000)
@@ -242,9 +248,34 @@ class MainActivity : Activity(), SensorEventListener {
         requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
     }
 
+    /** Fetch People groups when the app opens (at most once a minute) and redraw the tab and widget. */
+    private fun syncPeople(force: Boolean = false) {
+        if (!PeopleRepo.configured || PeopleRepo.cached(this).isEmpty()) return
+        val now = System.currentTimeMillis()
+        if (!force && now - peopleSyncedAt < 60_000) return
+        peopleSyncedAt = now
+        val app = applicationContext
+        peopleScope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching {
+                    val loc = if (PeopleRepo.paused(app)) null else PeopleRepo.locate(app)
+                    PeopleRepo.pushProfile(app, null, loc)
+                    PeopleRepo.refresh(app)
+                }
+            }
+            PeopleViews.update(app)
+            adapter.notifyItemChanged(TAB_PEOPLE)
+        }
+        PeopleSync.schedule(app)
+    }
+
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (Manifest.permission.ACCESS_COARSE_LOCATION in permissions) refreshPlace(force = true)
+        if (requestCode == PeoplePage.REQ_FINE || requestCode == PeoplePage.REQ_BG) {
+            syncPeople(force = true)
+            adapter.notifyItemChanged(TAB_PEOPLE)
+        }
         reload(alsoWidgets = true)
     }
 
@@ -318,6 +349,7 @@ class MainActivity : Activity(), SensorEventListener {
             TAB_FOCUS -> focusPage(s, col)
             TAB_INSTRUMENTS -> instrumentsPage(s, col)
             TAB_PHONE -> phonePage(s, col)
+            TAB_PEOPLE -> PeoplePage.build(this, col, peopleScope) { adapter.notifyItemChanged(TAB_PEOPLE) }
             else -> setupPage(col)
         }
     }
@@ -931,6 +963,7 @@ class MainActivity : Activity(), SensorEventListener {
             listOf(
                 "All-in-one" to RingWidgetReceiver::class.java,
                 "Clock" to ClockWidget::class.java,
+                "People" to PeopleWidget::class.java,
                 "Today" to TodayWidget::class.java,
                 "Steps" to StepsWidget::class.java,
                 "Battery" to BatteryWidget::class.java,
@@ -1248,7 +1281,8 @@ class MainActivity : Activity(), SensorEventListener {
         const val TAB_FOCUS = 4
         const val TAB_INSTRUMENTS = 5
         const val TAB_PHONE = 6
-        const val TAB_SETUP = 7
+        const val TAB_PEOPLE = 7
+        const val TAB_SETUP = 8
         const val DEV_EMAIL = "athulsn34@gmail.com"
         const val REPO_URL = "https://github.com/Athulsn10/glance-kit"
         const val PRIVACY_URL = "https://athulsn10.github.io/glance-kit/privacy.html"

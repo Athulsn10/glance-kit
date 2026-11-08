@@ -1,0 +1,37 @@
+# Manual deploy of the People backend (Firestore rules + Cloud Functions) to Firebase.
+# Run from Actions > Deploy backend > Run workflow. Needs the FIREBASE_DEPLOY_SA_JSON secret.
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "What to deploy"
+        type: choice
+        options: ["firestore:rules,functions", "firestore:rules", "functions"]
+        default: "firestore:rules,functions"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firebase
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install function dependencies
+        run: npm ci --prefix functions
+
+      - name: Deploy
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_DEPLOY_SA_JSON }}
+        run: |
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-514117 --non-interactive --force
+          rm -f "$RUNNER_TEMP/sa.json"

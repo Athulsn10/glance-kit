@@ -50,6 +50,7 @@ private val worker = Executors.newSingleThreadExecutor()
 fun refreshAll(c: Context) = synchronized(updateLock) {
     val ids = widgetIds(c)
     runCatching { ClockViews.update(c) } // cheap: no data collection needed
+    runCatching { if (PeopleViews.ids(c).isNotEmpty()) PeopleViews.update(c) } // keeps "x min ago" fresh
     if (ids.isEmpty() && !Singles.anyPlaced(c)) return@synchronized
     val s = Collect.snapshot(c)
     if (ids.isNotEmpty()) AppWidgetManager.getInstance(c).updateAppWidget(ids, Views.root(c, s))

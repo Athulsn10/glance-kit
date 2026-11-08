@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- People widget icon: two faces and a heart. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp" android:viewportWidth="48" android:viewportHeight="48">
+    <path android:fillColor="#FFF3C69C" android:pathData="M14,26m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <path android:fillColor="#FFF3C69C" android:pathData="M34,26m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <path android:fillColor="#FF261E1E" android:pathData="M5,25a9,9 0,0 1,18 0z" />
+    <path android:fillColor="#FF603C26" android:pathData="M25,25a9,9 0,0 1,18 0z" />
+    <path android:fillColor="#FFFF7A96" android:pathData="M24,12c-1.5,-2.5 -6,-2 -6,1.5c0,3 6,6.5 6,6.5s6,-3.5 6,-6.5c0,-3.5 -4.5,-4 -6,-1.5z" />
+</vector>

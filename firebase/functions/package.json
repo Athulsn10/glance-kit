@@ -1,0 +1,11 @@
+{
+  "name": "glance-kit-people",
+  "private": true,
+  "description": "Cloud Functions for the Glance Kit People widget: pairing codes, hugs and pokes.",
+  "main": "index.js",
+  "engines": { "node": "22" },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.1.0"
+  }
+}

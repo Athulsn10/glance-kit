@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One frame of the People scene animation. -->
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/people_frame"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:contentDescription="People"
+    android:scaleType="fitCenter" />
