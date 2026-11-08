@@ -3,6 +3,11 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.1] - 2026-11-09
+
+### Fixed
+- Fixed the People widget showing "Can't load widget".
+
 ## [1.20.0] - 2026-11-09
 
 ### Added
