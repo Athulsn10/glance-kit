@@ -182,9 +182,34 @@ object PeopleRepo {
         return gid
     }
 
-    suspend fun send(c: Context, groupId: String, action: String) {
+    /** What happened to a send: how many phones it reached, of how many people. */
+    data class SendResult(val sent: Int, val tokens: Int, val others: Int, val error: String?) {
+        /** A short line for a toast. */
+        fun message(label: String, who: String): String = when {
+            sent > 0 -> "$label sent"
+            others == 0 -> "No one else is in this group yet"
+            tokens == 0 -> "Sent, but $who's phone isn't set up for alerts yet. Ask them to update Glance Kit and open it once."
+            else -> "Couldn't reach $who's phone" + (error?.let { " ($it)" } ?: "") + ". Ask them to open Glance Kit once."
+        }
+    }
+
+    private fun result(data: Any?): SendResult {
+        @Suppress("UNCHECKED_CAST")
+        val m = data as? Map<String, Any?> ?: emptyMap()
+        fun n(k: String) = (m[k] as? Number)?.toInt() ?: 0
+        return SendResult(n("sent"), n("tokens"), n("others"), m["error"] as? String)
+    }
+
+    suspend fun send(c: Context, groupId: String, action: String): SendResult {
         uid(c) ?: error("Couldn't connect.")
-        fn().getHttpsCallable("sendAction").call(mapOf("groupId" to groupId, "action" to action)).await()
+        return result(fn().getHttpsCallable("sendAction").call(mapOf("groupId" to groupId, "action" to action)).await().getData())
+    }
+
+    /** Sends a hug to this phone through the cloud, to check alerts work end to end. */
+    suspend fun testAlert(c: Context): SendResult {
+        uid(c) ?: error("Couldn't connect. Check your internet.")
+        pushToken(c)
+        return result(fn().getHttpsCallable("sendAction").call(mapOf("test" to true)).await().getData())
     }
 
     /** Wakes the send function up (it sleeps when unused), so the first hug goes out quickly. */
@@ -268,11 +293,28 @@ object PeopleRepo {
 
     suspend fun pushToken(c: Context, token: String? = null) {
         val uid = uid(c) ?: return
-        val t = token ?: runCatching { FirebaseMessaging.getInstance().token.await() }.getOrNull() ?: return
+        val t = token ?: runCatching { FirebaseMessaging.getInstance().token.await() }
+            .onFailure { notePush(c, false, "Couldn't get a push token: ${it.message}") }.getOrNull() ?: return
         runCatching {
             db().collection("tokens").document(uid).set(mapOf("token" to t, "updatedAt" to FieldValue.serverTimestamp())).await()
-        }
+        }.onSuccess { notePush(c, true, null) }
+            .onFailure { notePush(c, false, "Couldn't save the push token: ${it.message}") }
     }
+
+    private const val K_PUSH_OK = "people_push_ok"
+    private const val K_PUSH_ERR = "people_push_err"
+    private const val K_PUSH_LAST = "people_push_last"
+
+    private fun notePush(c: Context, ok: Boolean, err: String?) {
+        Store.prefs(c).edit().putBoolean(K_PUSH_OK, ok).putString(K_PUSH_ERR, err?.take(160)).apply()
+    }
+
+    /** Whether this phone is registered for alerts, and the last problem if not. */
+    fun pushStatus(c: Context): Pair<Boolean, String?> =
+        Store.prefs(c).getBoolean(K_PUSH_OK, false) to Store.prefs(c).getString(K_PUSH_ERR, null)
+
+    fun noteAlertArrived(c: Context) = Store.prefs(c).edit().putLong(K_PUSH_LAST, System.currentTimeMillis()).apply()
+    fun lastAlert(c: Context) = Store.prefs(c).getLong(K_PUSH_LAST, 0L)
 
     /** Download my groups and everyone in them, and keep a copy on the phone. */
     suspend fun refresh(c: Context): List<GroupData> {

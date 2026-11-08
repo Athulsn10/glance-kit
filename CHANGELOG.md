@@ -3,6 +3,17 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.3] - 2026-11-09
+
+### Fixed
+- Hugs, kisses and pokes now vibrate the receiving phone directly in their pattern, instead of
+  relying on notification vibration (which system settings and Android's notification cooldown can mute).
+
+### Added
+- People > Sharing > Alerts on this phone: shows whether notifications are on, whether the phone is
+  registered for alerts, and when the last one arrived, with a button to send a test hug to yourself.
+- After sending, a message says if the other phone couldn't be reached and why.
+
 ## [1.20.2] - 2026-11-09
 
 ### Fixed
