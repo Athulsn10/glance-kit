@@ -164,7 +164,7 @@ object PeopleRepo {
         val res = fn().getHttpsCallable("createInvite")
             .call(mapOf("circle" to circle.key, "groupId" to groupId)).await()
         @Suppress("UNCHECKED_CAST")
-        val m = res.data as Map<String, Any?>
+        val m = res.getData() as Map<String, Any?>
         val gid = m["groupId"] as String
         pushProfile(c, listOf(gid))
         return (m["code"] as String) to gid
@@ -175,7 +175,7 @@ object PeopleRepo {
         uid(c) ?: error("Couldn't connect. Check your internet and try again.")
         val res = fn().getHttpsCallable("joinWithCode").call(mapOf("code" to code.uppercase().filter { it.isLetterOrDigit() })).await()
         @Suppress("UNCHECKED_CAST")
-        val gid = (res.data as Map<String, Any?>)["groupId"] as String
+        val gid = (res.getData() as Map<String, Any?>)["groupId"] as String
         pushProfile(c, listOf(gid))
         return gid
     }

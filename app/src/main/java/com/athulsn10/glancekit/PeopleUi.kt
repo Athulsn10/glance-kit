@@ -364,7 +364,7 @@ class AvatarEditorActivity : Activity() {
             addView(Ui.text(context, "Tap to try a mood", 12f, Ui.FAINT, gravity = Gravity.CENTER),
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            marginStart = Ui.dp(this, 16); marginEnd = Ui.dp(this, 16)
+            marginStart = Ui.dp(this@AvatarEditorActivity, 16); marginEnd = Ui.dp(this@AvatarEditorActivity, 16)
         })
         root.addView(scroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
         setContentView(root)
