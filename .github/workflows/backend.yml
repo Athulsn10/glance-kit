@@ -33,6 +33,9 @@ jobs:
         run: |
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          # Turn on the APIs the Firebase CLI checks but cannot enable itself.
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          gcloud services enable cloudbilling.googleapis.com firebaseextensions.googleapis.com --project glance-kit-cf358 --quiet || true
           set +e
           npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-cf358 --non-interactive --force 2>&1 | tee deploy.log
           code=${PIPESTATUS[0]}
