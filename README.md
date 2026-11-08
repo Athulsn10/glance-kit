@@ -129,7 +129,7 @@ It runs on Firebase:
 
 | Part | Where |
 |---|---|
-| Anonymous sign-in, Firestore, Cloud Messaging | Firebase project `glance-kit-514117` |
+| Anonymous sign-in, Firestore, Cloud Messaging | Firebase project `glance-kit-cf358` |
 | Database rules | [`firebase/firestore.rules`](firebase/firestore.rules) |
 | Cloud Functions (pairing codes, actions, leaving) | [`firebase/functions/index.js`](firebase/functions/index.js), region `asia-south1` |
 | App config | `app/google-services.json` (read at build time; without it People shows "coming soon") |

@@ -33,5 +33,5 @@ jobs:
         run: |
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-514117 --non-interactive --force
+          npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-cf358 --non-interactive --force
           rm -f "$RUNNER_TEMP/sa.json"
