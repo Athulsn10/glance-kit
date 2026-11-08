@@ -1,0 +1,17 @@
+# Read-only check that the Play service account works; lists the tracks and their releases.
+name: Check Play access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install --quiet google-api-python-client google-auth
+      - name: List Play tracks
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          PACKAGE_NAME: com.athulsn10.glancekit
+        run: python3 scripts/play_tracks.py

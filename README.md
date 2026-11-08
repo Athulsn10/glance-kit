@@ -60,12 +60,10 @@ on its edge (tube), and the phone gives a short buzz when it's level.
 
 ### Download the APK
 
-Each push to `main` builds the app and publishes it as the latest release:
-
-**[Download GlanceKit.apk](https://github.com/Athulsn10/glance-kit/releases/latest/download/GlanceKit.apk)**
+Download `GlanceKit-<version>.apk` from the **[latest release](https://github.com/Athulsn10/glance-kit/releases/latest)**.
 
 Open the file on your phone to install it. Android will ask you to allow installs from your browser or file manager.
-New builds install over the previous one.
+Newer versions install over older ones.
 
 ### Build from source
 
@@ -120,6 +118,40 @@ app/src/main/java/com/athulsn10/glancekit/
 ├── Config.kt         User settings
 └── MainActivity.kt   Setup screen
 ```
+
+## Versioning and releases
+
+The version lives in one place, [`version.properties`](version.properties), as `MAJOR.MINOR.PATCH`:
+
+| Part | Bump it for | Example |
+|---|---|---|
+| MAJOR | Big redesigns or breaking changes | 1.19.0 → 2.0.0 |
+| MINOR | New features | 1.19.0 → 1.20.0 |
+| PATCH | Bug fixes only | 1.19.0 → 1.19.1 |
+
+The Play Store `versionCode` is worked out from it: `MAJOR*10000 + MINOR*100 + PATCH` (1.19.0 → 11900),
+so MINOR and PATCH stay below 100. Every Play upload needs a higher versionCode, so a release with an
+unchanged version is rejected.
+
+**Workflows**
+
+- **Build** runs on every push and pull request. It builds a debug APK to check nothing is broken, and makes no release.
+- **Release** runs only when you start it (Actions → Release → Run workflow). Pick the Play track (`alpha` is
+  closed testing, or `internal`, `beta` or `production`) and whether to publish straight away or upload a draft.
+  It builds the signed AAB and APK, uploads the AAB to Google Play with the "What's new" text, tags the commit
+  `vX.Y.Z` and creates the GitHub release.
+- **Check Play access** is a read-only check that lists the Play tracks.
+
+**To release**
+
+1. Bump `VERSION_NAME` in `version.properties`.
+2. Add a `## [X.Y.Z] - date` section to [`CHANGELOG.md`](CHANGELOG.md). It becomes the GitHub release notes.
+3. Update [`distribution/whatsnew/whatsnew-en-US`](distribution/whatsnew/whatsnew-en-US) (500 characters max). It becomes the Play Store "What's new".
+4. Push to `main`, then run **Release**.
+
+The workflow needs these repository secrets: `UPLOAD_KEYSTORE_BASE64`, `UPLOAD_STORE_PASSWORD`,
+`UPLOAD_KEY_ALIAS`, `UPLOAD_KEY_PASSWORD` (Play upload key) and `PLAY_SERVICE_ACCOUNT_JSON`
+(Google Play service account with release permission for this app).
 
 ## Known limitations
 

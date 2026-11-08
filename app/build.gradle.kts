@@ -19,6 +19,15 @@ val uploadProps = Properties().apply {
 fun upload(env: String, prop: String): String? = System.getenv(env) ?: uploadProps.getProperty(prop)
 val uploadStore = upload("UPLOAD_KEYSTORE_FILE", "storeFile")
 
+/* Version: one place, version.properties at the repo root. */
+val appVersionName: String = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}.getProperty("VERSION_NAME")
+val appVersionCode: Int = appVersionName.split(".").map { it.toInt() }.let { (major, minor, patch) ->
+    require(minor < 100 && patch < 100) { "MINOR and PATCH must be below 100 (got $appVersionName)" }
+    major * 10000 + minor * 100 + patch
+}
+
 android {
     namespace = "com.athulsn10.glancekit"
     compileSdk = 36
@@ -27,9 +36,9 @@ android {
         applicationId = "com.athulsn10.glancekit"
         minSdk = 31
         targetSdk = 36
-        // Each GitHub build gets a higher number, so phones accept it as an update.
-        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.18." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+        // From version.properties: 1.19.0 -> versionCode 11900.
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
