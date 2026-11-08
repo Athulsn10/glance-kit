@@ -11,6 +11,7 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.functions.FirebaseFunctions
 import com.google.firebase.messaging.FirebaseMessaging
@@ -173,7 +174,8 @@ object PeopleRepo {
     /** Join someone's group with their code. Returns the group id. */
     suspend fun join(c: Context, code: String): String {
         uid(c) ?: error("Couldn't connect. Check your internet and try again.")
-        val res = fn().getHttpsCallable("joinWithCode").call(mapOf("code" to code.uppercase().filter { it.isLetterOrDigit() })).await()
+        val res = fn().getHttpsCallable("joinWithCode")
+            .call(mapOf("code" to code.uppercase().filter { it.isLetterOrDigit() }, "name" to name(c).ifEmpty { "Someone" })).await()
         @Suppress("UNCHECKED_CAST")
         val gid = (res.getData() as Map<String, Any?>)["groupId"] as String
         pushProfile(c, listOf(gid))
@@ -185,10 +187,56 @@ object PeopleRepo {
         fn().getHttpsCallable("sendAction").call(mapOf("groupId" to groupId, "action" to action)).await()
     }
 
-    suspend fun leave(c: Context, groupId: String) {
-        uid(c) ?: error("Couldn't connect.")
-        fn().getHttpsCallable("leaveGroup").call(mapOf("groupId" to groupId)).await()
-        saveGroups(c, cached(c).filter { it.group.id != groupId })
+    /** Wakes the send function up (it sleeps when unused), so the first hug goes out quickly. */
+    suspend fun warm(c: Context) {
+        uid(c) ?: return
+        runCatching { fn().getHttpsCallable("sendAction").call(mapOf("warm" to true)).await() }
+    }
+
+    /** Leave a group: it disappears from this phone at once, and comes back if the cloud can't be reached. */
+    suspend fun leave(c: Context, groupId: String, onRemoved: () -> Unit = {}) {
+        val before = cached(c)
+        saveGroups(c, before.filter { it.group.id != groupId })
+        onRemoved()
+        try {
+            uid(c) ?: error("Couldn't connect.")
+            fn().getHttpsCallable("leaveGroup").call(mapOf("groupId" to groupId)).await()
+        } catch (e: Exception) {
+            saveGroups(c, before) // didn't go through: put it back
+            throw e
+        }
+    }
+
+    /**
+     * Live updates while the app is open: calls [onChange] (on the main thread) whenever a group
+     * or anyone's place, mood or avatar changes. Call the returned function to stop.
+     */
+    fun live(c: Context, onChange: () -> Unit): (() -> Unit)? {
+        val uid = uidNow(c) ?: return null
+        val regs = ArrayList<ListenerRegistration>()
+        val memberRegs = HashMap<String, ListenerRegistration>()
+        var first = true
+        regs += db().collection("groups").whereArrayContains("members", uid).addSnapshotListener { snap, err ->
+            if (err != null || snap == null) return@addSnapshotListener
+            val ids = snap.documents.map { it.id }.toSet()
+            // Follow each group's members (their places), and stop following groups we're no longer in.
+            (memberRegs.keys - ids).forEach { memberRegs.remove(it)?.remove() }
+            for (gid in ids - memberRegs.keys) {
+                var firstMembers = true
+                memberRegs[gid] = db().collection("groups").document(gid).collection("members").addSnapshotListener { m, e ->
+                    if (e != null || m == null) return@addSnapshotListener
+                    if (firstMembers) { firstMembers = false; return@addSnapshotListener }
+                    if (!m.metadata.hasPendingWrites()) onChange()
+                }
+            }
+            if (first) { first = false; return@addSnapshotListener }
+            if (!snap.metadata.hasPendingWrites()) onChange()
+        }
+        return {
+            regs.forEach { it.remove() }
+            memberRegs.values.forEach { it.remove() }
+            memberRegs.clear()
+        }
     }
 
     /** Write my profile (and, if given, a new location) to each of my groups. */

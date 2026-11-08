@@ -62,7 +62,7 @@ class PeopleWidget : AppWidgetProvider() {
         if (intent.action != ACTION_SEND) return
         val gid = intent.getStringExtra(EXTRA_GROUP) ?: return
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
-        PeopleSync.buzz(context, longArrayOf(0, 30))
+        // No buzz here: only the people you send it to feel it.
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             val ok = withTimeoutOrNull(8_000) { runCatching { PeopleRepo.send(context, gid, action) }.isSuccess } ?: false
@@ -210,15 +210,28 @@ class PeopleSync(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
             wm.cancelUniqueWork(PERIODIC); wm.cancelUniqueWork(ONCE)
         }
 
+        /** Vibrates as a message from someone, which Android allows even with the app in the background. */
         fun buzz(c: Context, pattern: LongArray) {
             val v: Vibrator = c.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
-            runCatching { v.vibrate(VibrationEffect.createWaveform(pattern, -1)) }
+            val attrs = android.os.VibrationAttributes.Builder()
+                .setUsage(android.os.VibrationAttributes.USAGE_COMMUNICATION_REQUEST).build()
+            runCatching { v.vibrate(VibrationEffect.createWaveform(pattern, -1), attrs) }
         }
     }
 }
 
 /** Receives hugs, pokes and "home safe" pushes: buzz in the action's pattern, notify, redraw. */
 class PeopleMessaging : FirebaseMessagingService() {
+
+    companion object {
+        /** True when notifications from this app (and this channel, if it exists yet) can show and buzz. */
+        fun canAlert(c: Context, channel: String? = null): Boolean {
+            val nm = c.getSystemService(NotificationManager::class.java) ?: return false
+            if (!nm.areNotificationsEnabled()) return false
+            val ch = channel?.let { nm.getNotificationChannel(it) } ?: return true
+            return ch.importance != NotificationManager.IMPORTANCE_NONE
+        }
+    }
 
     override fun onNewToken(token: String) {
         runBlocking { withTimeoutOrNull(10_000) { PeopleRepo.pushToken(this@PeopleMessaging, token) } }
@@ -227,14 +240,51 @@ class PeopleMessaging : FirebaseMessagingService() {
     override fun onMessageReceived(msg: RemoteMessage) {
         val d = msg.data
         val gid = d["groupId"] ?: return
+        if (d["type"] == "sync") {
+            // Someone joined or left: refetch now so the widget and app don't wait for the next sync.
+            runBlocking { withTimeoutOrNull(8_000) { runCatching { PeopleRepo.refresh(this@PeopleMessaging) } } }
+            PeopleViews.update(this)
+            val who = d["fromName"]?.ifBlank { null } ?: "Someone"
+            when (d["event"]) {
+                "left" -> update("$who left your group", "You're no longer sharing with them.")
+                "joined" -> update("$who joined", "You can see each other now.")
+            }
+            return
+        }
         val from = d["from"] ?: return
         val circle = Circle.of(d["circle"])
         val action = circle.action(d["action"]) ?: return
         val name = d["fromName"]?.ifBlank { null } ?: "Someone"
         PeopleRepo.noteReceived(this, gid, from, action.key)
-        notify(circle, action, name)
+        // The notification channel carries the action's vibration. If notifications are off,
+        // buzz directly so it's still felt.
+        if (canAlert(this, "people_${circle.key}_${action.key}")) notify(circle, action, name)
+        else PeopleSync.buzz(this, action.pattern)
         PeopleViews.update(this)
         PeopleSync.now(this) // fetch their latest place too
+    }
+
+    /** A quiet note when someone joins or leaves. */
+    private fun update(title: String, text: String) {
+        val nm = getSystemService(NotificationManager::class.java)
+        val id = "people_updates"
+        if (nm.getNotificationChannel(id) == null) {
+            nm.createNotificationChannel(NotificationChannel(id, "People: joins and leaves", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "When someone joins or leaves one of your groups"
+                setShowBadge(false)
+            })
+        }
+        val open = PendingIntent.getActivity(this, 173,
+            Intent(this, MainActivity::class.java).putExtra("tab", "people").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = android.app.Notification.Builder(this, id)
+            .setSmallIcon(R.drawable.ic_w_people)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { nm.notify(id.hashCode(), n) }
     }
 
     private fun notify(circle: Circle, action: PeopleAction, name: String) {

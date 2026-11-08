@@ -3,6 +3,20 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.2] - 2026-11-09
+
+### Fixed
+- Hugs, kisses and pokes now buzz only the person you send them to, not your own phone.
+- If notifications are off, the receiving phone still vibrates.
+- Leaving a group updates the other phone within seconds instead of at its next sync.
+- Sending is faster: the cloud function starts quicker and is woken when People opens.
+- Opening the app shows the latest from your group straight away, before your own location is found.
+
+### Added
+- While the app is open, joins, leaves, places and moods update live.
+- A quiet notification when someone joins or leaves your group.
+- A card on People asking for notifications, so hugs can be felt.
+
 ## [1.20.1] - 2026-11-09
 
 ### Fixed

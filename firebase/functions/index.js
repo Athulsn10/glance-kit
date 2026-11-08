@@ -9,7 +9,8 @@ const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
-setGlobalOptions({ region: "asia-south1", maxInstances: 5, memory: "256MiB" });
+// A full vCPU makes cold starts and each call noticeably quicker than the fractional default.
+setGlobalOptions({ region: "asia-south1", maxInstances: 5, memory: "512MiB", cpu: 1, concurrency: 20 });
 
 const db = admin.firestore();
 const { FieldValue, Timestamp } = admin.firestore;
@@ -42,6 +43,45 @@ async function groupFor(uid, gid) {
   const snap = await ref.get();
   if (!snap.exists || !(snap.get("members") || []).includes(uid)) throw new HttpsError("permission-denied", "You're not in this group.");
   return { ref, snap };
+}
+
+/** Push tokens for these people, as [{ref, token}]. */
+async function tokensFor(uids) {
+  if (!uids.length) return [];
+  const docs = await db.getAll(...uids.map((m) => db.collection("tokens").doc(m)));
+  return docs.filter((d) => d.exists && d.get("token")).map((d) => ({ ref: d.ref, token: d.get("token") }));
+}
+
+/** Send a data push to these people and forget tokens that no longer work. */
+async function push(uids, data) {
+  const owners = await tokensFor(uids);
+  if (!owners.length) return 0;
+  const res = await admin.messaging().sendEachForMulticast({
+    tokens: owners.map((o) => o.token),
+    data,
+    android: { priority: "high", ttl: 60 * 60 * 1000 },
+  });
+  const dead = [];
+  res.responses.forEach((r, i) => {
+    const code = r.error && r.error.code;
+    if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") dead.push(owners[i].ref.delete());
+  });
+  await Promise.all(dead);
+  return res.successCount;
+}
+
+/** Tell the others in a group to refetch it now (someone joined or left). Never fails the call. */
+async function nudge(gid, uids, event, fromName) {
+  try {
+    await push(uids, { type: "sync", groupId: gid, event, fromName: String(fromName || "Someone").slice(0, 24) });
+  } catch (e) {
+    console.warn("nudge failed", e);
+  }
+}
+
+async function nameOf(gref, uid) {
+  const d = await gref.collection("members").doc(uid).get();
+  return (d.exists && d.get("name")) || "Someone";
 }
 
 /** Make a code. Creates a new group, or (family) invites into an existing one. */
@@ -87,7 +127,7 @@ exports.joinWithCode = onCall(async (req) => {
   if (code.length !== 6) throw new HttpsError("invalid-argument", "Codes have 6 letters and numbers.");
   const invRef = db.collection("invites").doc(code);
 
-  return db.runTransaction(async (tx) => {
+  const out = await db.runTransaction(async (tx) => {
     const inv = await tx.get(invRef);
     if (!inv.exists) throw new HttpsError("not-found", "That code doesn't exist or has expired.");
     if (inv.get("expiresAt").toMillis() < Date.now()) {
@@ -99,69 +139,53 @@ exports.joinWithCode = onCall(async (req) => {
     if (!g.exists) throw new HttpsError("not-found", "That group no longer exists.");
     const members = g.get("members") || [];
     const circle = g.get("circle");
-    if (members.includes(uid)) return { groupId: gref.id, circle };
+    if (members.includes(uid)) return { groupId: gref.id, circle, others: [] };
     if (members.length >= CIRCLES[circle].max) throw new HttpsError("failed-precondition", "This group is already full.");
     tx.update(gref, { members: FieldValue.arrayUnion(uid) });
     if (members.length + 1 >= CIRCLES[circle].max || circle !== "family") tx.delete(invRef);
-    return { groupId: gref.id, circle };
+    return { groupId: gref.id, circle, others: members };
   });
+  // Let the people already in the group see the newcomer straight away.
+  await nudge(out.groupId, out.others, "joined", req.data && req.data.name);
+  return { groupId: out.groupId, circle: out.circle };
 });
 
-/** Send a hug, poke, etc. Buzzes everyone else in the group. */
+/** Send a hug, poke, etc. Buzzes everyone else in the group (never the sender). */
 exports.sendAction = onCall(async (req) => {
   const uid = needUser(req);
+  // The app calls this with warm: true when People opens, so the first real send is quick.
+  if (req.data && req.data.warm) return { warm: true };
   const action = req.data && req.data.action;
-  const { ref, snap } = await groupFor(uid, req.data && req.data.groupId);
+  const rate = db.collection("rate").doc(uid);
+  const [{ ref, snap }, r] = await Promise.all([groupFor(uid, req.data && req.data.groupId), rate.get()]);
   const circle = snap.get("circle");
   if (!CIRCLES[circle].actions.includes(action)) throw new HttpsError("invalid-argument", "Unknown action.");
 
   // A little rate limit, so a stuck finger doesn't send fifty hugs.
-  const rate = db.collection("rate").doc(uid);
-  await db.runTransaction(async (tx) => {
-    const r = await tx.get(rate);
-    const last = r.exists ? r.get("at").toMillis() : 0;
-    if (Date.now() - last < ACTION_GAP_MS) throw new HttpsError("resource-exhausted", "Slow down a little.");
-    tx.set(rate, { at: Timestamp.now() });
-  });
+  if (r.exists && Date.now() - r.get("at").toMillis() < ACTION_GAP_MS) throw new HttpsError("resource-exhausted", "Slow down a little.");
 
-  await ref.update({ lastFrom: uid, lastAction: action, lastAt: FieldValue.serverTimestamp() });
-
-  const me = await ref.collection("members").doc(uid).get();
-  const fromName = (me.exists && me.get("name")) || "Someone";
   const others = (snap.get("members") || []).filter((m) => m !== uid);
-  if (!others.length) return { sent: 0 };
-  const tokenDocs = await db.getAll(...others.map((m) => db.collection("tokens").doc(m)));
-  const tokens = tokenDocs.filter((d) => d.exists && d.get("token")).map((d) => d.get("token"));
-  if (!tokens.length) return { sent: 0 };
-
-  const res = await admin.messaging().sendEachForMulticast({
-    tokens,
-    data: { groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24) },
-    android: { priority: "high", ttl: 60 * 60 * 1000 },
-  });
-  // Forget tokens that are no longer valid (app uninstalled, etc.).
-  const dead = [];
-  res.responses.forEach((r, i) => {
-    const code = r.error && r.error.code;
-    if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") dead.push(i);
-  });
-  await Promise.all(dead.map((i) => {
-    const owner = tokenDocs.filter((d) => d.exists && d.get("token"))[i];
-    return owner ? owner.ref.delete() : null;
-  }));
-  return { sent: res.successCount };
+  const [, , fromName] = await Promise.all([
+    rate.set({ at: Timestamp.now() }),
+    ref.update({ lastFrom: uid, lastAction: action, lastAt: FieldValue.serverTimestamp() }),
+    nameOf(ref, uid),
+  ]);
+  const sent = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24) });
+  return { sent };
 });
 
 /** Leave a group. Deletes your profile and location from it; the group goes when empty. */
 exports.leaveGroup = onCall(async (req) => {
   const uid = needUser(req);
   const { ref, snap } = await groupFor(uid, req.data && req.data.groupId);
-  await ref.collection("members").doc(uid).delete();
+  const name = await nameOf(ref, uid);
   const left = (snap.get("members") || []).filter((m) => m !== uid);
   if (left.length === 0) {
     await db.recursiveDelete(ref);
   } else {
-    await ref.update({ members: FieldValue.arrayRemove(uid) });
+    await Promise.all([ref.collection("members").doc(uid).delete(), ref.update({ members: FieldValue.arrayRemove(uid) })]);
+    // Tell the others right away instead of waiting for their next sync.
+    await nudge(ref.id, left, "left", name);
   }
   return { ok: true };
 });

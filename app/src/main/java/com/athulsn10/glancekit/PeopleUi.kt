@@ -118,6 +118,24 @@ object PeoplePage {
             }, Ui.params(c, 12))
         }
 
+        // ---------- Notifications (how hugs and pokes buzz this phone) ----------
+        if (groups.isNotEmpty() && !PeopleMessaging.canAlert(c)) {
+            col.addView(Ui.card(c, "NOTIFICATIONS").apply {
+                addView(Ui.text(c, "Allow notifications to feel their hugs", 17f, Ui.WHITE, medium = true))
+                addView(Ui.spacer(c, 6))
+                addView(Ui.text(c, "When someone sends you a hug, poke or \"home safe\", your phone buzzes in its own pattern. Android needs notifications on for that.", 13f, Ui.SOFT))
+                addView(Ui.spacer(c, 12))
+                addView(Ui.pill(c, "Allow notifications", true) {
+                    if (a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        a.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIF)
+                    } else {
+                        a.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, a.packageName))
+                    }
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(c, 46)))
+            }, Ui.params(c, 12))
+        }
+
         // ---------- Groups ----------
         val shown = PeopleRepo.widgetData(c)?.group?.id
         for (gd in groups) col.addView(groupCard(a, gd, me, gd.group.id == shown && groups.size > 1, scope, refresh), Ui.params(c, 12))
@@ -207,7 +225,7 @@ object PeoplePage {
                     row.addView(Ui.text(c, act.label, 14f, Ui.WHITE, medium = true, gravity = Gravity.CENTER).apply {
                         background = Ui.rounded(if (i == 0) circle.accent else 0xFF242424.toInt(), Ui.dp(c, 22).toFloat())
                         setOnClickListener {
-                            PeopleSync.buzz(c, act.pattern)
+                            // No buzz here: only the people you send it to feel it.
                             scope.launch {
                                 val ok = withContext(Dispatchers.IO) { runCatching { PeopleRepo.send(c, g.id, act.key) }.isSuccess }
                                 Toast.makeText(c, if (ok) "${act.label} sent" else "Couldn't send. Check your internet.", Toast.LENGTH_SHORT).show()
@@ -232,7 +250,13 @@ object PeoplePage {
                     .setMessage("You'll stop sharing with them, and they'll stop seeing you.")
                     .setPositiveButton("Leave") { _, _ ->
                         scope.launch {
-                            val ok = withContext(Dispatchers.IO) { runCatching { PeopleRepo.leave(c, g.id) }.isSuccess }
+                            val ok = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    PeopleRepo.leave(c, g.id) {
+                                        scope.launch(Dispatchers.Main) { PeopleViews.update(c); refresh() }
+                                    }
+                                }.isSuccess
+                            }
                             if (!ok) Toast.makeText(c, "Couldn't leave. Check your internet.", Toast.LENGTH_SHORT).show()
                             PeopleViews.update(c); refresh()
                         }
@@ -256,6 +280,7 @@ object PeoplePage {
                 PeopleRepo.setWidgetGroup(a, gid)
                 withContext(Dispatchers.IO) { PeopleRepo.refresh(a) }
                 PeopleSync.schedule(a)
+                a.startPeopleLive() // so you see them the moment they join
                 refresh()
                 val pretty = code.chunked(3).joinToString("-")
                 val box = Ui.vstack(a).apply { setPadding(Ui.dp(a, 24), Ui.dp(a, 12), Ui.dp(a, 24), 0) }
@@ -301,6 +326,7 @@ object PeoplePage {
                         PeopleRepo.setWidgetGroup(a, gid)
                         withContext(Dispatchers.IO) { PeopleRepo.refresh(a) }
                         PeopleSync.schedule(a); PeopleSync.now(a)
+                        a.startPeopleLive()
                         PeopleViews.update(a)
                         refresh()
                         Toast.makeText(a, "You're paired!", Toast.LENGTH_SHORT).show()
@@ -329,6 +355,7 @@ object PeoplePage {
 
     const val REQ_FINE = 41
     const val REQ_BG = 42
+    const val REQ_NOTIF = 43
 }
 
 /** Make your avatar: start from a look, then change any part. */

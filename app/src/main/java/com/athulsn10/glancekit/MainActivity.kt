@@ -47,6 +47,8 @@ import java.util.concurrent.Executors
 class MainActivity : Activity(), SensorEventListener {
 
     private val tabs = listOf("Today", "Steps", "Battery", "Data", "Focus", "Instruments", "Phone", "People", "Setup")
+    private var peopleLive: (() -> Unit)? = null
+    private var peopleLiveJob: kotlinx.coroutines.Job? = null
     private val peopleScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private var peopleSyncedAt = 0L
 
@@ -166,6 +168,7 @@ class MainActivity : Activity(), SensorEventListener {
         resumed = true
         reload()
         syncPeople()
+        startPeopleLive()
         updateSensors()
         main.removeCallbacks(phoneTick)
         main.postDelayed(phoneTick, 60_000)
@@ -180,6 +183,7 @@ class MainActivity : Activity(), SensorEventListener {
         super.onPause()
         main.removeCallbacks(phoneTick)
         resumed = false
+        stopPeopleLive()
         updateSensors()
     }
 
@@ -248,7 +252,10 @@ class MainActivity : Activity(), SensorEventListener {
         requestPermissions(arrayOf(Manifest.permission.ACTIVITY_RECOGNITION), 1)
     }
 
-    /** Fetch People groups when the app opens (at most once a minute) and redraw the tab and widget. */
+    /**
+     * Fetch People groups when the app opens (at most once a minute) and redraw the tab and widget.
+     * Their latest is shown first; my own location (which can take a while to fix) goes up after.
+     */
     private fun syncPeople(force: Boolean = false) {
         if (!PeopleRepo.configured || PeopleRepo.cached(this).isEmpty()) return
         val now = System.currentTimeMillis()
@@ -256,22 +263,44 @@ class MainActivity : Activity(), SensorEventListener {
         peopleSyncedAt = now
         val app = applicationContext
         peopleScope.launch {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { PeopleRepo.refresh(app) } }
+            PeopleViews.update(app)
+            adapter.notifyItemChanged(TAB_PEOPLE)
+            startPeopleLive()
+            launch(kotlinx.coroutines.Dispatchers.IO) { PeopleRepo.warm(app) }
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 runCatching {
                     val loc = if (PeopleRepo.paused(app)) null else PeopleRepo.locate(app)
                     PeopleRepo.pushProfile(app, null, loc)
-                    PeopleRepo.refresh(app)
                 }
             }
-            PeopleViews.update(app)
-            adapter.notifyItemChanged(TAB_PEOPLE)
         }
         PeopleSync.schedule(app)
+    }
+
+    /** While the app is open, follow changes in my groups live (joins, leaves, places, moods). */
+    fun startPeopleLive() {
+        if (peopleLive != null || !resumed || !PeopleRepo.configured) return
+        val app = applicationContext
+        peopleLive = PeopleRepo.live(app) {
+            peopleLiveJob?.cancel()
+            peopleLiveJob = peopleScope.launch {
+                kotlinx.coroutines.delay(400) // several changes often land together
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { PeopleRepo.refresh(app) } }
+                PeopleViews.update(app)
+                adapter.notifyItemChanged(TAB_PEOPLE)
+            }
+        }
+    }
+
+    private fun stopPeopleLive() {
+        peopleLive?.invoke(); peopleLive = null
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (Manifest.permission.ACCESS_COARSE_LOCATION in permissions) refreshPlace(force = true)
+        if (requestCode == PeoplePage.REQ_NOTIF) adapter.notifyItemChanged(TAB_PEOPLE)
         if (requestCode == PeoplePage.REQ_FINE || requestCode == PeoplePage.REQ_BG) {
             syncPeople(force = true)
             adapter.notifyItemChanged(TAB_PEOPLE)
