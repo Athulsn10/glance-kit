@@ -136,8 +136,8 @@ unchanged version is rejected.
 **Workflows**
 
 - **Build** runs on every push and pull request. It builds a debug APK to check nothing is broken, and makes no release.
-- **Release** runs only when you start it (Actions → Release → Run workflow). Pick the Play track (`alpha` is
-  closed testing, or `internal`, `beta` or `production`) and whether to publish straight away or upload a draft.
+- **Release** runs only when you start it (Actions → Release → Run workflow). Pick the Play track (`internal` is
+  internal testing, `alpha` closed testing, `beta` open testing, or `production`) and whether to publish straight away or upload a draft.
   It builds the signed AAB and APK, uploads the AAB to Google Play with the "What's new" text, tags the commit
   `vX.Y.Z` and creates the GitHub release.
 - **Check Play access** is a read-only check that lists the Play tracks.

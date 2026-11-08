@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       track:
-        description: "Google Play track"
+        description: "Google Play track (internal = internal testing, alpha = closed testing, beta = open testing)"
         type: choice
-        options: [alpha, internal, beta, production]
-        default: alpha
+        options: [internal, alpha, beta, production]
+        default: internal
       status:
         description: "completed = release now, draft = upload and finish it in Play Console"
         type: choice
@@ -31,7 +31,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -55,12 +55,12 @@ jobs:
           chars=$(wc -m < distribution/whatsnew/whatsnew-en-US)
           if [ "$chars" -gt 500 ]; then echo "::error::distribution/whatsnew/whatsnew-en-US is $chars characters; Play allows 500."; exit 1; fi
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: Build signed AAB and APK
         env:
