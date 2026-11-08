@@ -189,6 +189,34 @@ object PeoplePage {
                     refresh()
                 }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(c, 46)))
             }
+            if (groups.isNotEmpty()) {
+                addView(Ui.spacer(c, 18))
+                addView(Ui.label(c, "ALERTS ON THIS PHONE"))
+                addView(Ui.spacer(c, 6))
+                val (pushOk, pushErr) = PeopleRepo.pushStatus(c)
+                val notif = PeopleMessaging.canAlert(c)
+                val last = PeopleRepo.lastAlert(c)
+                val lines = listOf(
+                    (if (notif) "✓ Notifications on" else "✗ Notifications off (hugs still buzz, but without a message)"),
+                    (if (pushOk) "✓ Registered for hugs and pokes" else "✗ Not registered yet" + (pushErr?.let { ": $it" } ?: "")),
+                    "Last alert received: " + (if (last > 0) People.ago(last) else "never"),
+                )
+                addView(Ui.text(c, lines.joinToString("\n"), 13f, Ui.SOFT))
+                addView(Ui.spacer(c, 10))
+                addView(Ui.pill(c, "Test: send a hug to this phone", false) {
+                    Toast.makeText(c, "Sending a test hug. Lock your phone to feel it.", Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        val res = withContext(Dispatchers.IO) { runCatching { PeopleRepo.testAlert(c) } }
+                        val msg = res.fold({
+                            if (it.sent > 0) null
+                            else if (it.tokens == 0) "This phone isn't registered for alerts. " + (PeopleRepo.pushStatus(c).second ?: "Check your internet and try again.")
+                            else "The cloud couldn't reach this phone" + (it.error?.let { e -> " ($e)" } ?: "")
+                        }, { "Couldn't reach the cloud: ${it.message}" })
+                        if (msg != null) Toast.makeText(c, msg, Toast.LENGTH_LONG).show()
+                        refresh()
+                    }
+                }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(c, 46)))
+            }
             addView(Ui.spacer(c, 12))
             addView(Ui.text(c, "Your location is rounded to about 10 m and replaced at each update; no history is kept. People in your groups see only the distance, never a map. Your home stays on this phone.", 12f, Ui.FAINT))
         }, Ui.params(c, 12))
@@ -227,8 +255,9 @@ object PeoplePage {
                         setOnClickListener {
                             // No buzz here: only the people you send it to feel it.
                             scope.launch {
-                                val ok = withContext(Dispatchers.IO) { runCatching { PeopleRepo.send(c, g.id, act.key) }.isSuccess }
-                                Toast.makeText(c, if (ok) "${act.label} sent" else "Couldn't send. Check your internet.", Toast.LENGTH_SHORT).show()
+                                val res = withContext(Dispatchers.IO) { runCatching { PeopleRepo.send(c, g.id, act.key) } }
+                                val msg = res.fold({ it.message(act.label, other?.name ?: "their") }, { "Couldn't send. Check your internet." })
+                                Toast.makeText(c, msg, if (res.getOrNull()?.sent ?: 0 > 0) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
                             }
                         }
                     }, LinearLayout.LayoutParams(0, Ui.dp(c, 46), 1f).apply { if (i > 0) marginStart = Ui.dp(c, 8) })

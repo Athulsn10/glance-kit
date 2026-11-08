@@ -55,7 +55,7 @@ async function tokensFor(uids) {
 /** Send a data push to these people and forget tokens that no longer work. */
 async function push(uids, data) {
   const owners = await tokensFor(uids);
-  if (!owners.length) return 0;
+  if (!owners.length) return { sent: 0, tokens: 0, error: null };
   const res = await admin.messaging().sendEachForMulticast({
     tokens: owners.map((o) => o.token),
     data,
@@ -67,7 +67,9 @@ async function push(uids, data) {
     if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") dead.push(owners[i].ref.delete());
   });
   await Promise.all(dead);
-  return res.successCount;
+  const firstErr = res.responses.find((r) => r.error);
+  if (firstErr) console.warn("push error", firstErr.error.code, firstErr.error.message);
+  return { sent: res.successCount, tokens: owners.length, error: firstErr ? firstErr.error.code : null };
 }
 
 /** Tell the others in a group to refetch it now (someone joined or left). Never fails the call. */
@@ -155,6 +157,11 @@ exports.sendAction = onCall(async (req) => {
   const uid = needUser(req);
   // The app calls this with warm: true when People opens, so the first real send is quick.
   if (req.data && req.data.warm) return { warm: true };
+  // "Test alerts" in the app: push a hug to your own phone to check the whole path.
+  if (req.data && req.data.test) {
+    const r = await push([uid], { type: "action", test: "1", groupId: "test", circle: "couple", action: "hug", from: uid, fromName: "Glance Kit" });
+    return { ...r, others: 1 };
+  }
   const action = req.data && req.data.action;
   const rate = db.collection("rate").doc(uid);
   const [{ ref, snap }, r] = await Promise.all([groupFor(uid, req.data && req.data.groupId), rate.get()]);
@@ -170,8 +177,8 @@ exports.sendAction = onCall(async (req) => {
     ref.update({ lastFrom: uid, lastAction: action, lastAt: FieldValue.serverTimestamp() }),
     nameOf(ref, uid),
   ]);
-  const sent = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24) });
-  return { sent };
+  const out = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24) });
+  return { ...out, others: others.length };
 });
 
 /** Leave a group. Deletes your profile and location from it; the group goes when empty. */

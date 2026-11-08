@@ -65,12 +65,11 @@ class PeopleWidget : AppWidgetProvider() {
         // No buzz here: only the people you send it to feel it.
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
-            val ok = withTimeoutOrNull(8_000) { runCatching { PeopleRepo.send(context, gid, action) }.isSuccess } ?: false
-            if (!ok) {
-                CoroutineScope(Dispatchers.Main).launch {
-                    Toast.makeText(context, "Couldn't send. Check your internet.", Toast.LENGTH_SHORT).show()
-                }
-            }
+            val res = withTimeoutOrNull(9_000) { runCatching { PeopleRepo.send(context, gid, action) }.getOrNull() }
+            val gd = PeopleRepo.cached(context).firstOrNull { it.group.id == gid }
+            val label = gd?.group?.circle?.action(action)?.label ?: "Hi"
+            val msg = res?.message(label, gd?.others?.firstOrNull()?.name ?: "their") ?: "Couldn't send. Check your internet."
+            CoroutineScope(Dispatchers.Main).launch { Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
             pending.finish()
         }
     }
@@ -240,6 +239,7 @@ class PeopleMessaging : FirebaseMessagingService() {
     override fun onMessageReceived(msg: RemoteMessage) {
         val d = msg.data
         val gid = d["groupId"] ?: return
+        PeopleRepo.noteAlertArrived(this)
         if (d["type"] == "sync") {
             // Someone joined or left: refetch now so the widget and app don't wait for the next sync.
             runBlocking { withTimeoutOrNull(8_000) { runCatching { PeopleRepo.refresh(this@PeopleMessaging) } } }
@@ -255,6 +255,12 @@ class PeopleMessaging : FirebaseMessagingService() {
         val circle = Circle.of(d["circle"])
         val action = circle.action(d["action"]) ?: return
         val name = d["fromName"]?.ifBlank { null } ?: "Someone"
+        if (d["test"] == "1") {
+            // "Test alerts" in the app: feel a hug without touching any group.
+            if (canAlert(this, "people_${circle.key}_${action.key}")) notify(circle, action, "Test:")
+            else PeopleSync.buzz(this, action.pattern)
+            return
+        }
         PeopleRepo.noteReceived(this, gid, from, action.key)
         // The notification channel carries the action's vibration. If notifications are off,
         // buzz directly so it's still felt.
