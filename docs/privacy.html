@@ -38,15 +38,16 @@
 <main>
   <div class="eyebrow">Glance Kit</div>
   <h1>Privacy Policy</h1>
-  <p class="muted">Effective 31 October 2026 (updated for approximate location) · App package <code>com.athulsn10.glancekit</code></p>
+  <p class="muted">Effective 9 November 2026 (updated for the People widget) · App package <code>com.athulsn10.glancekit</code></p>
 
   <div class="summary">
     <strong>In short</strong>
     <ul>
-      <li>Glance Kit has no accounts, no ads, no analytics and no tracking.</li>
+      <li>Glance Kit has no ads, no analytics and no tracking. There are no usernames or passwords.</li>
       <li>Almost everything is read and kept on your phone. It never leaves it.</li>
       <li>If you allow it, the app uses your <strong>approximate</strong> location (never GPS), rounded to about 1&nbsp;km, for sunrise, sunset, weather and air quality.</li>
-      <li>The only data sent anywhere is that approximate location, sent to two weather services so the Clock widget can show weather and air quality.</li>
+      <li>That approximate location is sent to two weather services so the Clock widget can show weather and air quality.</li>
+      <li><strong>People (optional):</strong> if you pair with a partner, friend or family, your name, avatar and location are shared <strong>only with the people you paired with</strong>, through Google Firebase, so their app can show how far apart you are. You can pause or leave at any time.</li>
       <li>Uninstalling the app removes everything it stored.</li>
     </ul>
   </div>
@@ -68,6 +69,7 @@
     <tr><td>Your next alarm time</td><td>Clock widget</td></tr>
     <tr><td>Approximate location (optional), rounded to about 1&nbsp;km</td><td>Sunrise, sunset, golden hour, sun and moon position, weather and air quality</td></tr>
     <tr><td>Focus timer sessions and settings you choose</td><td>Focus timer, streaks and charts</td></tr>
+    <tr><td>Your "home" place (People, optional)</td><td>Showing "home" to your family. The place itself stays on your phone; only a yes/no "at home" is shared.</td></tr>
   </table>
   </div>
   <p>Glance Kit does <strong>not</strong> access your contacts, messages, photos, files' contents, microphone, camera or precise (GPS) location.</p>
@@ -75,6 +77,19 @@
   <h2>Location</h2>
   <p>Location is optional. If you allow <strong>approximate location</strong>, Android gives the app a coarse position based on Wi-Fi and mobile networks, never GPS. The app rounds it to about 1&nbsp;km and stores it on your phone. It's only updated while the app is open, never in the background. The app doesn't keep a history of places, and it doesn't track your movements.</p>
   <p>If you don't allow location, the app uses a built-in default location instead. You can turn location off at any time in Setup or in Android Settings. Once it's off, the app goes back to the default location.</p>
+
+  <h2>People: sharing with your partner, friends or family</h2>
+  <p>People is optional and off until you pair with someone. Pairing needs a one-time code made on one phone and typed into the other, so both people have to agree. A group is either two people (Partner or Friend) or up to five (Family).</p>
+  <p><strong>What's shared, and with whom.</strong> When you're in a group, your phone shares these with the people in that group only:</p>
+  <ul>
+    <li>the name and avatar you choose (no real name is required)</li>
+    <li>your location, rounded to about 10&nbsp;m, and when it was taken. Their app uses it to show the distance between you; it never shows a map or your address</li>
+    <li>whether you're "at home" (yes/no, for Family), whether sharing is paused, your time zone, and a mood if you set one for the day</li>
+    <li>the hugs, pokes and other actions you send</li>
+  </ul>
+  <p><strong>How it's sent.</strong> This goes through Google Firebase (Firestore database, Cloud Functions and Cloud Messaging), run by Google on our behalf. To use it, the app creates an anonymous ID with Firebase Authentication. There's no email, phone number or password. Firebase stores your phone's push token so actions can reach it. Database rules make sure only people in your group can read your details, and only you can change them. See <a href="https://firebase.google.com/support/privacy">Firebase privacy and security</a>.</p>
+  <p><strong>Location for People.</strong> People asks for <em>precise</em> location, so that "together" can work, and for "Allow all the time", so the distance can update in the background. Updates happen only at the interval you choose (every 15, 30 or 60 minutes), one location each time. Each new location replaces the last one. No location history is kept, here or in the cloud.</p>
+  <p><strong>Your control.</strong> You can pause sharing at any time; the others then see you as paused. Leaving a group deletes your details from it straight away. A group is deleted when its last person leaves. Uninstalling the app stops all sharing. To have your anonymous ID and data removed, email us.</p>
 
   <h2>Data sent off your phone</h2>
   <p>The Clock widget and the Clock page of the all-in-one widget show weather and air quality. To get them, the app sends requests to two services:</p>
@@ -92,24 +107,25 @@
     <tr><th>Permission</th><th>Used for</th></tr>
     <tr><td>Physical activity</td><td>Reading the step sensor</td></tr>
     <tr><td>Approximate location (optional)</td><td>Sunrise, sunset, weather and air quality for where you are. Foreground only, never GPS.</td></tr>
+    <tr><td>Precise location and "all the time" location (optional, People only)</td><td>Sharing your distance with the people you paired with, at the interval you choose, including when the app is closed</td></tr>
     <tr><td>Usage access (optional)</td><td>Screen time, most-used apps, app storage and cache sizes, and full-day data use</td></tr>
-    <tr><td>Notifications</td><td>The quiet notification shown while the live compass widget is on</td></tr>
+    <tr><td>Notifications</td><td>The live compass's quiet notification, and hugs, pokes and other actions from your People groups</td></tr>
     <tr><td>Foreground service</td><td>Keeping the live compass widget turning while the screen is on</td></tr>
     <tr><td>All files access (optional)</td><td>Only to open Android's own "clear app cache" screen from the Cache card</td></tr>
-    <tr><td>Internet and network state</td><td>Fetching weather and air quality</td></tr>
+    <tr><td>Internet and network state</td><td>Fetching weather and air quality, and People sharing</td></tr>
     <tr><td>Vibration</td><td>Haptic feedback and the focus-timer alert</td></tr>
   </table>
   </div>
   <p>Optional permissions can be turned off at any time in Android Settings. The rest of the app keeps working without them.</p>
 
   <h2>Sharing, selling and advertising</h2>
-  <p>Glance Kit does not sell, rent or share your data with anyone. It contains no advertising, analytics or crash-reporting libraries.</p>
+  <p>Glance Kit does not sell or rent your data, and never uses it for advertising. Apart from the weather services above, and the people you choose to pair with through Firebase, nothing is shared. It contains no advertising, analytics or crash-reporting libraries.</p>
 
   <h2>Keeping and deleting data</h2>
   <p>History such as steps, battery and data-use charts is kept on your phone for a limited time, up to about 40 days depending on the chart. To delete everything at once, clear the app's storage in Android Settings or uninstall the app.</p>
 
   <h2>Security</h2>
-  <p>Data stays in the app's private storage, which other apps can't read. Weather requests use encrypted HTTPS connections.</p>
+  <p>Data stays in the app's private storage, which other apps can't read. All network traffic, for weather and for People, uses encrypted HTTPS connections. People data in Firebase is protected by access rules, so only members of a group can read it.</p>
 
   <h2>Children</h2>
   <p>Glance Kit is a general-purpose utility and isn't directed at children under 13. It doesn't knowingly collect personal information from anyone.</p>

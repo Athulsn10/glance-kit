@@ -1056,8 +1056,9 @@ class MainActivity : Activity(), SensorEventListener {
             addView(Ui.text(context, "Glance Kit $v", 15f, Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context,
-                "Everything is read on your phone. No accounts, no tracking. The only thing sent out is your approximate location " +
-                    "(rounded to about 1 km), to MET Norway and Open-Meteo for the Clock widget's weather and air quality.",
+                "Everything is read on your phone. No ads, no tracking. Your approximate location (rounded to about 1 km) goes to " +
+                    "MET Norway and Open-Meteo for weather and air quality. If you use People, your name, avatar and location are " +
+                    "shared only with the people you pair with.",
                 13f, Ui.FAINT))
             addView(Ui.spacer(context, 6))
             addView(Ui.text(context, "Weather data: MET Norway (api.met.no), CC BY 4.0.", 12f, Ui.FAINT).apply {

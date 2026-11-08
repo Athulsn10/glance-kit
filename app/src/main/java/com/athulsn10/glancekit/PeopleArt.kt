@@ -244,7 +244,7 @@ object PeopleArt {
      * so all frames together stay well under the widget size limit.
      */
     fun frames(ctx: Context, wDp: Float, hDp: Float, g: Group, me: Person?, others: List<Person>, n: Int = 3): List<Bitmap> {
-        val scale = min(ctx.resources.displayMetrics.density, 2f)
+        val scale = min(ctx.resources.displayMetrics.density, 1.5f) // keeps 3 frames well under the widget size limit
         val w = (wDp * scale).toInt().coerceAtLeast(60)
         val h = (hDp * scale).toInt().coerceAtLeast(40)
         return (0 until n).map { i ->

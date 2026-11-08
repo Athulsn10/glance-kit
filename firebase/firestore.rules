@@ -33,7 +33,8 @@ service cloud.firestore {
     }
 
     match /groups/{gid} {
-      allow read: if isMember(gid);
+      // Written so "groups where members contains me" queries are allowed.
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
       allow write: if false;
 
       match /members/{uid} {

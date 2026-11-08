@@ -3,6 +3,21 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.0] - 2026-11-09
+
+### Added
+- **People widget and tab.** Pair with your partner, a friend or your family (up to 5) with a one-time code.
+  - A little scene shows how far apart you are: together, nearby, same city or far apart, with their local time.
+  - Cute avatars with 12 moods that react to what's happening, 16 starting looks, and hair, skin, outfit and extras to customise.
+  - Partner (hearts), Friend (stars, paper plane) and Family (home) each have their own colours and actions:
+    Hug / Miss you / Kiss, High five / Poke / Hang out?, Home safe / Call me / Love you. Each buzzes the other phone in its own pattern.
+  - Distance updates every 15, 30 or 60 minutes, one location each time. Pause or leave at any time.
+  - The widget's animation is a few frames flipped by the launcher, so it costs the app nothing.
+- Backend for People: Firestore rules and Cloud Functions in `firebase/`, deployed by the **Deploy backend** workflow.
+
+### Changed
+- Privacy policy updated for People.
+
 ## [1.19.0] - 2026-11-08
 
 ### Changed

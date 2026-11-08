@@ -119,6 +119,25 @@ app/src/main/java/com/athulsn10/glancekit/
 └── MainActivity.kt   Setup screen
 ```
 
+## People (partner, friends, family)
+
+The **People** tab and widget let you pair with a partner, a friend or your family (up to 5 people) using a one-time code.
+Each phone shares its location at the interval you pick (15, 30 or 60 minutes), and the widget shows how far apart you are
+with animated avatars. Hugs, pokes and "home safe" arrive as push messages and buzz in their own pattern.
+
+It runs on Firebase:
+
+| Part | Where |
+|---|---|
+| Anonymous sign-in, Firestore, Cloud Messaging | Firebase project `glance-kit-514117` |
+| Database rules | [`firebase/firestore.rules`](firebase/firestore.rules) |
+| Cloud Functions (pairing codes, actions, leaving) | [`firebase/functions/index.js`](firebase/functions/index.js), region `asia-south1` |
+| App config | `app/google-services.json` (read at build time; without it People shows "coming soon") |
+
+Deploy rules and functions with **Actions → Deploy backend**, which needs the `FIREBASE_DEPLOY_SA_JSON` secret
+(a service account with Firebase Admin, Cloud Functions Admin, Cloud Run Admin, Service Account User,
+Artifact Registry Administrator, Cloud Build Editor and Service Usage Consumer roles).
+
 ## Versioning and releases
 
 The version lives in one place, [`version.properties`](version.properties), as `MAJOR.MINOR.PATCH`:
