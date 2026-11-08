@@ -33,5 +33,13 @@ jobs:
         run: |
           echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-cf358 --non-interactive --force
+          set +e
+          npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-cf358 --non-interactive --force 2>&1 | tee deploy.log
+          code=${PIPESTATUS[0]}
           rm -f "$RUNNER_TEMP/sa.json"
+          if [ "$code" -ne 0 ]; then
+            # Show the error on the run summary too.
+            msg=$(grep -iE "error|denied|permission|not been used|enable|billing|failed" deploy.log | tail -25 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+            echo "::error title=Deploy failed::${msg}"
+            exit "$code"
+          fi
