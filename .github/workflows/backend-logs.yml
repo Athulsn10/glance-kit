@@ -34,6 +34,7 @@ jobs:
           set +e
           node tools/read-logs.js "${{ inputs.hours }}" 40 > reports.txt
           code=$?
+          node tools/groups.js > groups.txt
           # Cloud Functions' own error logs too (needs the Logs Viewer role; skipped if missing).
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet >/dev/null 2>&1
           gcloud logging read 'resource.type="cloud_run_revision" AND severity>=ERROR' --project glance-kit-cf358 \
@@ -42,10 +43,12 @@ jobs:
           cat reports.txt; echo; cat cloud.txt cloud.err
           {
             echo "## Error reports (last ${{ inputs.hours }} h)"; echo '```'; cat reports.txt; echo '```'
+            echo "## Groups"; echo '```'; cat groups.txt; echo '```'
             echo "## Cloud Functions errors"; echo '```'; cat cloud.txt; head -3 cloud.err; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           enc() { cut -c1-400 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'; }
           echo "::notice title=Error reports::$(head -40 reports.txt | enc)"
+          echo "::notice title=Groups::$(head -40 groups.txt | enc)"
           if [ -s cloud.txt ]; then echo "::notice title=Cloud Functions errors::$(head -15 cloud.txt | enc)"
           else echo "::notice title=Cloud Functions errors::none or not readable: $(head -2 cloud.err | enc)"; fi
           exit $code
