@@ -37,7 +37,7 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest --console=plain; code=$?; adb logcat -d -s WidgetHostTest:I AppWidgetHostView:* AppWidgetServiceImpl:* RemoteViews:* *:E | grep -iE "WidgetHostTest|widget|remoteviews|transaction" | tail -40 > widget-log.txt; exit $code
+          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest --console=plain; code=$?; adb logcat -d | grep -E "WidgetHostTest|AndroidRuntime|RemoteViews|AppWidgetHostView" | tail -40 > widget-log.txt; exit $code
 
       - name: Show widget log
         if: always()

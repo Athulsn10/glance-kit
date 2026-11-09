@@ -106,3 +106,45 @@ class WidgetHostTest {
         }
     }
 }
+
+/** Builds and applies the People widget for every avatar, scene and size it can meet. */
+@RunWith(AndroidJUnit4::class)
+class PeopleWidgetMatrixTest {
+
+    private val ins = InstrumentationRegistry.getInstrumentation()
+    private val ctx = ins.targetContext
+
+    @Test fun everyCase() {
+        val now = System.currentTimeMillis()
+        val fails = ArrayList<String>()
+        val avatars = AvatarArt.PRESETS.map { it.second }
+        val cases = ArrayList<Pair<String, PeopleRepo.GroupData>>()
+        avatars.forEachIndexed { i, av ->
+            val far = Person("t$i", "Sam", av, 51.5, -0.12, now, false, "Europe/London", false, Mood.entries[i % Mood.entries.size], now + 3_600_000)
+            val near = far.copy(lat = 10.521, lon = 76.211, tz = "Asia/Kolkata")
+            val circle = Circle.entries[i % 3]
+            cases += "far $i" to PeopleRepo.GroupData(Group("g", circle, listOf("me", far.uid), null, null, 0), listOf(far))
+            cases += "near $i" to PeopleRepo.GroupData(Group("g", circle, listOf("me", far.uid), null, null, 0), listOf(near))
+            cases += "received $i" to PeopleRepo.GroupData(Group("g", circle, listOf("me", far.uid), far.uid, circle.actions[0].key, now), listOf(near))
+            cases += "paused $i" to PeopleRepo.GroupData(Group("g", circle, listOf("me", far.uid), null, null, 0), listOf(near.copy(paused = true, lat = null, lon = null)))
+        }
+        val fam = avatars.take(4).mapIndexed { i, av -> Person("f$i", "Fam$i", av, 10.5 + i, 76.2, now, false, null, i == 0, null, 0) }
+        cases += "family" to PeopleRepo.GroupData(Group("g", Circle.FAMILY, listOf("me") + fam.map { it.uid }, null, null, 0), fam)
+        cases += "waiting" to PeopleRepo.GroupData(Group("g", Circle.COUPLE, listOf("me"), null, null, 0), emptyList())
+        try {
+            for ((name, gd) in cases) for ((w, h) in listOf(250 to 140, 400 to 220, 600 to 400)) {
+                PeopleRepo.saveGroups(ctx, listOf(gd))
+                val err = runCatching {
+                    val rv = PeopleViews.views(ctx, w.toFloat(), h.toFloat())
+                    var e: Throwable? = null
+                    ins.runOnMainSync { try { rv.apply(ctx, android.widget.FrameLayout(ctx)) } catch (t: Throwable) { e = t } }
+                    e?.let { throw it }
+                }.exceptionOrNull()
+                if (err != null) fails += "$name ${w}x$h: ${err.javaClass.simpleName}: ${err.message} @ ${err.stackTrace.take(3).joinToString(" < ")}"
+            }
+        } finally {
+            PeopleRepo.saveGroups(ctx, emptyList())
+        }
+        if (fails.isNotEmpty()) throw AssertionError("${fails.size} failing cases:\n" + fails.take(8).joinToString("\n"))
+    }
+}
