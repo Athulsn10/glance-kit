@@ -10,6 +10,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35, 36]
     steps:
       - uses: actions/checkout@v5
 
@@ -29,22 +33,29 @@ jobs:
       - name: Run widget tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           disable-animations: true
-          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest --console=plain
+          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest --console=plain; code=$?; adb logcat -d -s WidgetHostTest:I AppWidgetHostView:* AppWidgetServiceImpl:* RemoteViews:* *:E | grep -iE "WidgetHostTest|widget|remoteviews|transaction" | tail -40 > widget-log.txt; exit $code
+
+      - name: Show widget log
+        if: always()
+        run: |
+          [ -f widget-log.txt ] || exit 0
+          msg=$(tail -25 widget-log.txt | cut -c1-220 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          echo "::notice title=Widget log (API ${{ matrix.api }})::${msg}"
 
       - name: Report failures
         if: failure()
         run: |
           msg=$(grep -rhoE '<failure message="[^"]{0,1500}' app/build/outputs/androidTest-results 2>/dev/null | sed 's/<failure message="//' | head -5 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
           [ -z "$msg" ] && msg="No test results found (build or emulator problem)."
-          echo "::error title=Widget test failed::${msg}"
+          echo "::error title=Widget test failed (API ${{ matrix.api }})::${msg}"
 
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: widget-test-results
+          name: widget-test-results-${{ matrix.api }}
           path: app/build/outputs/androidTest-results
           retention-days: 7
