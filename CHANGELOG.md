@@ -3,6 +3,13 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.8] - 2026-11-09
+
+### Fixed
+- Hugs, kisses and pokes are delivered. Firebase was rejecting every one because the message used
+  "from", a name Firebase reserves; it's now "sender". The deploy now asks Firebase to validate
+  the message first, so this can't slip through again.
+
 ## [1.20.7] - 2026-11-09
 
 ### Fixed

@@ -331,7 +331,8 @@ class PeopleMessaging : FirebaseMessagingService() {
             }
             return
         }
-        val from = d["from"] ?: return
+        // "from" is reserved by Firebase, so the sender comes as "sender".
+        val from = d["sender"] ?: d["from"] ?: return
         val circle = Circle.of(d["circle"])
         val action = circle.action(d["action"]) ?: return
         val name = d["fromName"]?.ifBlank { null } ?: "Someone"

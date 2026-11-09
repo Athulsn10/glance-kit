@@ -9,8 +9,8 @@ admin.initializeApp({ projectId: "glance-kit-cf358" });
   const token = toks.docs.map((d) => d.get("token")).find(Boolean);
   if (!token) { console.log("No push tokens yet; skipped."); return; }
   const samples = [
-    { type: "action", groupId: "check", circle: "couple", action: "hug", from: "check", fromName: "Check", tab: "people" },
-    { type: "action", groupId: "check", circle: "friends", action: "poke", from: "check", fromName: "Check", tab: "people" },
+    { type: "action", groupId: "check", circle: "couple", action: "hug", sender: "check", fromName: "Check", tab: "people" },
+    { type: "action", groupId: "check", circle: "friends", action: "poke", sender: "check", fromName: "Check", tab: "people" },
     { type: "sync", groupId: "check", event: "left", fromName: "Check" },
   ];
   for (const data of samples) {

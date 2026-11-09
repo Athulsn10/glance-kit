@@ -207,7 +207,7 @@ exports.sendAction = logged("sendAction", async (req) => {
   if (req.data && req.data.warm) return { warm: true };
   // "Test alerts" in the app: push a hug to your own phone to check the whole path.
   if (req.data && req.data.test) {
-    const r = await push([uid], { type: "action", test: "1", groupId: "test", circle: "couple", action: "hug", from: uid, fromName: "Test:", tab: "people" });
+    const r = await push([uid], { type: "action", test: "1", groupId: "test", circle: "couple", action: "hug", sender: uid, fromName: "Test:", tab: "people" });
     return { ...r, others: 1 };
   }
   const action = req.data && req.data.action;
@@ -225,7 +225,7 @@ exports.sendAction = logged("sendAction", async (req) => {
     ref.update({ lastFrom: uid, lastAction: action, lastAt: FieldValue.serverTimestamp() }),
     nameOf(ref, uid),
   ]);
-  const out = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24), tab: "people" });
+  const out = await push(others, { type: "action", groupId: ref.id, circle, action, sender: uid, fromName: String(fromName).slice(0, 24), tab: "people" });
   if (out.sent < others.length) {
     await db.collection("logs").add({
       source: "server", fn: "sendAction", uid, code: "not-delivered", input: { groupId: ref.id, action },
