@@ -3,8 +3,6 @@ name: Widget test
 
 on:
   workflow_dispatch:
-  push:
-    branches: [widget-test]
 
 jobs:
   test:

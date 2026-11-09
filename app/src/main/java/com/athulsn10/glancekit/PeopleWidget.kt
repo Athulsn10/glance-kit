@@ -93,8 +93,27 @@ object PeopleViews {
             val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 280).coerceAtLeast(180)
             val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180).coerceAtLeast(140)
             runCatching { mgr.updateAppWidget(id, views(c, w.toFloat(), h.toFloat())) }
-                .onFailure { android.util.Log.w("GlanceKit", "People widget update failed", it) }
+                .onFailure { e ->
+                    android.util.Log.w("GlanceKit", "People widget update failed", e)
+                    // Never leave the widget blank or broken: show a plain version with the reason.
+                    runCatching { mgr.updateAppWidget(id, fallback(c, e)) }
+                }
         }
+    }
+
+    /** A picture-free widget, used if the full one can't be built. Shows why, to help fix it. */
+    private fun fallback(c: Context, e: Throwable): RemoteViews {
+        val rv = RemoteViews(c.packageName, R.layout.people_widget)
+        val gd = PeopleRepo.widgetData(c)
+        rv.setTextViewText(R.id.people_title, gd?.group?.circle?.title ?: "PEOPLE")
+        rv.setTextViewText(R.id.people_big, gd?.others?.firstOrNull()?.name ?: "People")
+        rv.setTextViewText(R.id.people_small, "Couldn't draw: ${e.javaClass.simpleName} ${e.message ?: ""}".take(90))
+        rv.setTextViewText(R.id.people_btn, "Open")
+        rv.setInt(R.id.people_btn, "setBackgroundResource", R.drawable.pill_grey)
+        val open = Views.openApp(c, "people", 170)
+        rv.setOnClickPendingIntent(R.id.people_btn, open)
+        rv.setOnClickPendingIntent(R.id.people_text, open)
+        return rv
     }
 
     fun views(c: Context, wDp: Float, hDp: Float): RemoteViews {

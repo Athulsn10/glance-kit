@@ -3,6 +3,16 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.4] - 2026-11-09
+
+### Fixed
+- The People widget falls back to a plain version (with the reason) if its picture can't be drawn,
+  instead of being left broken.
+
+### Added
+- Emulator tests (Actions > Widget test) that put every widget layout, and the People widget in
+  every scene and size, through a real widget host.
+
 ## [1.20.3] - 2026-11-09
 
 ### Fixed
