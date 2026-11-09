@@ -121,9 +121,9 @@ object PeoplePage {
         // ---------- Notifications (how hugs and pokes buzz this phone) ----------
         if (groups.isNotEmpty() && !PeopleMessaging.canAlert(c)) {
             col.addView(Ui.card(c, "NOTIFICATIONS").apply {
-                addView(Ui.text(c, "Allow notifications to feel their hugs", 17f, Ui.WHITE, medium = true))
+                addView(Ui.text(c, "Allow notifications to see their hugs", 17f, Ui.WHITE, medium = true))
                 addView(Ui.spacer(c, 6))
-                addView(Ui.text(c, "When someone sends you a hug, poke or \"home safe\", your phone buzzes in its own pattern. Android needs notifications on for that.", 13f, Ui.SOFT))
+                addView(Ui.text(c, "Hugs, pokes and \"home safe\" always buzz your phone. With notifications on, you also see who sent them.", 13f, Ui.SOFT))
                 addView(Ui.spacer(c, 12))
                 addView(Ui.pill(c, "Allow notifications", true) {
                     if (a.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -197,7 +197,7 @@ object PeoplePage {
                 val notif = PeopleMessaging.canAlert(c)
                 val last = PeopleRepo.lastAlert(c)
                 val lines = listOf(
-                    (if (notif) "✓ Notifications on" else "✗ Notifications off (hugs still buzz, but without a message)"),
+                    (if (notif) "✓ Notifications on" else "✗ Notifications off (hugs still buzz, but you won't see who sent them)"),
                     (if (pushOk) "✓ Registered for hugs and pokes" else "✗ Not registered yet" + (pushErr?.let { ": $it" } ?: "")),
                     "Last alert received: " + (if (last > 0) People.ago(last) else "never"),
                 )

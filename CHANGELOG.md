@@ -3,6 +3,19 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.6] - 2026-11-09
+
+### Fixed
+- Hugs, kisses and pokes now really vibrate the receiving phone directly. The 1.20.3 change that
+  did this was missing from the build, so phones still relied on notification vibration.
+- Sends are allowed 1 second apart (was 3), with a clearer message if too quick.
+- A failure that repeats (for example on every sync) is reported once an hour.
+
+### Added
+- Each received hug or poke is noted in the error reports (with ringer mode and delay), and the
+  cloud notes any send that didn't reach every phone, so delivery can be followed end to end.
+- Backend logs also list each group's members and whether their phones can get alerts.
+
 ## [1.20.5] - 2026-11-09
 
 ### Fixed

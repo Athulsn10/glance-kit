@@ -40,6 +40,14 @@ object PeopleLog {
         write(uid, entry)
     }
 
+    /** A note that something worked (e.g. a hug arrived), to follow a problem end to end. */
+    fun info(c: Context, where: String, detail: String) {
+        if (!PeopleRepo.configured) return
+        val uid = PeopleRepo.uidNow(c) ?: return
+        write(uid, JSONObject().put("where", where.take(60)).put("type", "info").put("code", "")
+            .put("message", "ok").put("detail", detail.take(1500)))
+    }
+
     /** Sends reports that were kept while signed out. */
     fun flush(c: Context) {
         val uid = PeopleRepo.uidNow(c) ?: return

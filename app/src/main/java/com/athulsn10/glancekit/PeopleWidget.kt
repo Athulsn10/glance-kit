@@ -224,6 +224,15 @@ class PeopleSync(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         }
 
         /** Vibrates as a message from someone, which Android allows even with the app in the background. */
+        fun canVibrate(c: Context) = c.getSystemService(VibratorManager::class.java)?.defaultVibrator?.hasVibrator() == true
+
+        fun ringer(c: Context) = when (c.getSystemService(android.media.AudioManager::class.java)?.ringerMode) {
+            android.media.AudioManager.RINGER_MODE_SILENT -> "silent"
+            android.media.AudioManager.RINGER_MODE_VIBRATE -> "vibrate"
+            android.media.AudioManager.RINGER_MODE_NORMAL -> "normal"
+            else -> "?"
+        }
+
         fun buzz(c: Context, pattern: LongArray) {
             val v: Vibrator = c.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
             val attrs = android.os.VibrationAttributes.Builder()
@@ -269,11 +278,13 @@ class PeopleSendWork(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
 class PeopleMessaging : FirebaseMessagingService() {
 
     companion object {
+        const val CHANNEL = "people_actions_v2"
+
         /** True when notifications from this app (and this channel, if it exists yet) can show and buzz. */
         fun canAlert(c: Context, channel: String? = null): Boolean {
             val nm = c.getSystemService(NotificationManager::class.java) ?: return false
             if (!nm.areNotificationsEnabled()) return false
-            val ch = channel?.let { nm.getNotificationChannel(it) } ?: return true
+            val ch = nm.getNotificationChannel(channel ?: CHANNEL) ?: return true
             return ch.importance != NotificationManager.IMPORTANCE_NONE
         }
     }
@@ -301,17 +312,18 @@ class PeopleMessaging : FirebaseMessagingService() {
         val circle = Circle.of(d["circle"])
         val action = circle.action(d["action"]) ?: return
         val name = d["fromName"]?.ifBlank { null } ?: "Someone"
+        // Buzz directly in the action's pattern. Notification vibration is unreliable here: system
+        // settings and Android's notification cooldown can mute it, so the notification is silent.
+        PeopleSync.buzz(this, action.pattern)
+        PeopleLog.info(this, "received ${action.key}", "priority ${msg.priority}/${msg.originalPriority}, notifications ${canAlert(this)}, " +
+            "vibrator ${PeopleSync.canVibrate(this)}, ringer ${PeopleSync.ringer(this)}, ${System.currentTimeMillis() - msg.sentTime} ms after sending")
         if (d["test"] == "1") {
             // "Test alerts" in the app: feel a hug without touching any group.
-            if (canAlert(this, "people_${circle.key}_${action.key}")) notify(circle, action, "Test:")
-            else PeopleSync.buzz(this, action.pattern)
+            notify(circle, action, "Test:")
             return
         }
         PeopleRepo.noteReceived(this, gid, from, action.key)
-        // The notification channel carries the action's vibration. If notifications are off,
-        // buzz directly so it's still felt.
-        if (canAlert(this, "people_${circle.key}_${action.key}")) notify(circle, action, name)
-        else PeopleSync.buzz(this, action.pattern)
+        notify(circle, action, name)
         PeopleViews.update(this)
         PeopleSync.now(this) // fetch their latest place too
     }
@@ -341,13 +353,17 @@ class PeopleMessaging : FirebaseMessagingService() {
 
     private fun notify(circle: Circle, action: PeopleAction, name: String) {
         val nm = getSystemService(NotificationManager::class.java)
-        // One channel per action, so each has its own vibration pattern.
-        val id = "people_${circle.key}_${action.key}"
+        if (!canAlert(this)) return
+        // One silent channel: the vibration is played directly (see onMessageReceived).
+        val id = CHANNEL
         if (nm.getNotificationChannel(id) == null) {
-            nm.createNotificationChannel(NotificationChannel(id, "${circle.label}: ${action.label}", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "When someone sends you a ${action.label.lowercase()}"
-                enableVibration(true)
-                vibrationPattern = action.pattern
+            // Older builds made one buzzing channel per action; tidy those away.
+            nm.notificationChannels.filter { it.id.startsWith("people_") && it.id != "people_updates" }
+                .forEach { runCatching { nm.deleteNotificationChannel(it.id) } }
+            nm.createNotificationChannel(NotificationChannel(id, "Hugs, pokes and more", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "When someone in your groups sends you something. Your phone buzzes in its own pattern for each."
+                enableVibration(false)
+                setSound(null, null)
                 setShowBadge(false)
             })
         }
@@ -362,6 +378,6 @@ class PeopleMessaging : FirebaseMessagingService() {
             .setContentIntent(open)
             .setAutoCancel(true)
             .build()
-        runCatching { nm.notify(id.hashCode(), n) }
+        runCatching { nm.notify(System.currentTimeMillis().toInt(), n) }
     }
 }

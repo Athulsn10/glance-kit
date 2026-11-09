@@ -18,6 +18,7 @@ const db = admin.firestore();
     if (x.source === "server") {
       return `${when} SERVER ${x.fn} [${x.code}] ${x.message} | uid ${who} | ${x.ms} ms | input ${JSON.stringify(x.input)}` + (x.stack ? ` | ${x.stack.split("\n").slice(0, 3).join(" < ")}` : "");
     }
+    if (x.type === "info") return `${when} APP ${x.app} ${x.device} | ${x.where} | ${x.detail} | uid ${who}`;
     return `${when} APP ${x.app} A${x.android} ${x.device} | ${x.where} | ${x.type}${x.code ? " " + x.code : ""}: ${x.message} | uid ${who} | ${x.detail || ""}`;
   });
   console.log(lines.length ? lines.join("\n") : `No error reports in the last ${hours} h.`);

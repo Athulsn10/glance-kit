@@ -25,7 +25,7 @@ function logged(name, handler) {
     const input = summarize(req.data);
     try {
       const out = await handler(req);
-      console.log(JSON.stringify({ fn: name, uid, ms: Date.now() - started, input, ok: true }));
+      console.log(JSON.stringify({ fn: name, uid, ms: Date.now() - started, input, ok: true, out: summarize(out) }));
       return out;
     } catch (e) {
       const code = e instanceof HttpsError ? e.code : "internal";
@@ -220,6 +220,13 @@ exports.sendAction = logged("sendAction", async (req) => {
     nameOf(ref, uid),
   ]);
   const out = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24) });
+  if (out.sent < others.length) {
+    await db.collection("logs").add({
+      source: "server", fn: "sendAction", uid, code: "not-delivered", input: { groupId: ref.id, action },
+      message: `Reached ${out.sent} of ${others.length} (tokens ${out.tokens}, error ${out.error || "none"})`,
+      at: FieldValue.serverTimestamp(),
+    }).catch(() => {});
+  }
   return { ...out, others: others.length };
 });
 
