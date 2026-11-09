@@ -66,6 +66,7 @@ android {
         // From version.properties: 1.19.0 -> versionCode 11900.
         versionCode = appVersionCode
         versionName = appVersionName
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         for (k in listOf("PROJECT_ID", "SENDER_ID", "APP_ID", "API_KEY")) {
             buildConfigField("String", "FIREBASE_$k", "\"${firebase[k] ?: ""}\"")
@@ -131,4 +132,8 @@ dependencies {
     implementation("com.google.firebase:firebase-functions")
     implementation("com.google.firebase:firebase-messaging")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+
+    // On-device checks that every widget layout inflates the way a launcher does it.
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

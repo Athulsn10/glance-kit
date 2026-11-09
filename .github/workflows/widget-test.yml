@@ -1,0 +1,50 @@
+# Runs the on-device widget checks in an Android emulator (manual).
+name: Widget test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [widget-test]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run widget tests on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: chmod +x gradlew && ./gradlew connectedDebugAndroidTest --console=plain
+
+      - name: Report failures
+        if: failure()
+        run: |
+          msg=$(grep -rhoE '<failure message="[^"]{0,1500}' app/build/outputs/androidTest-results 2>/dev/null | sed 's/<failure message="//' | head -5 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g')
+          [ -z "$msg" ] && msg="No test results found (build or emulator problem)."
+          echo "::error title=Widget test failed::${msg}"
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: widget-test-results
+          path: app/build/outputs/androidTest-results
+          retention-days: 7
