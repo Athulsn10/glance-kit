@@ -136,6 +136,30 @@ object PeoplePage {
             }, Ui.params(c, 12))
         }
 
+        // ---------- Background (phones that block closed apps) ----------
+        val maker = android.os.Build.MANUFACTURER.lowercase()
+        val strict = maker in setOf("vivo", "iqoo", "xiaomi", "redmi", "poco", "oppo", "realme", "oneplus", "huawei", "honor", "meizu", "tecno", "infinix")
+        if (groups.isNotEmpty() && strict && !Store.prefs(c).getBoolean("people_bg_done", false)) {
+            col.addView(Ui.card(c, "BACKGROUND").apply {
+                val brand = android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+                addView(Ui.text(c, "Let Glance Kit run in the background", 17f, Ui.WHITE, medium = true))
+                addView(Ui.spacer(c, 6))
+                addView(Ui.text(c,
+                    "$brand phones stop closed apps, so distances can't update and some alerts are delayed. " +
+                        "In the next screen: Battery → allow background activity (or \"Unrestricted\"), and turn on Autostart if you see it.",
+                    13f, Ui.SOFT))
+                addView(Ui.spacer(c, 12))
+                val row = Ui.hstack(c)
+                row.addView(Ui.pill(c, "Open settings", true) {
+                    a.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:${a.packageName}")))
+                }, LinearLayout.LayoutParams(0, Ui.dp(c, 46), 1f))
+                row.addView(Ui.pill(c, "Done", false) {
+                    Store.prefs(c).edit().putBoolean("people_bg_done", true).apply(); refresh()
+                }, LinearLayout.LayoutParams(0, Ui.dp(c, 46), 1f).apply { marginStart = Ui.dp(c, 8) })
+                addView(row)
+            }, Ui.params(c, 12))
+        }
+
         // ---------- Groups ----------
         val shown = PeopleRepo.widgetData(c)?.group?.id
         for (gd in groups) col.addView(groupCard(a, gd, me, gd.group.id == shown && groups.size > 1, scope, refresh), Ui.params(c, 12))

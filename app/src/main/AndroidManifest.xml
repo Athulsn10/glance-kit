@@ -59,6 +59,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Tapping a hug or poke notification opens People. -->
+            <intent-filter>
+                <action android:name="com.athulsn10.glancekit.OPEN_PEOPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
             <!-- Long-press the app icon: Compass, Level, Barometer. -->
             <meta-data
                 android:name="android.app.shortcuts"

@@ -95,13 +95,37 @@ async function tokensFor(uids) {
 }
 
 /** Send a data push to these people and forget tokens that no longer work. */
+// What each action says on the other phone (matches PeopleModel.kt).
+const PAST = {
+  hug: "sent a hug", miss: "misses you", kiss: "sent a kiss",
+  highfive: "sent a high five", poke: "poked you", hangout: "wants to hang out",
+  home: "got home safe", call: "asked you to call", love: "sends love",
+};
+
 async function push(uids, data) {
   const owners = await tokensFor(uids);
   if (!owners.length) return { sent: 0, tokens: 0, error: null };
+  const android = { priority: "high", ttl: 60 * 60 * 1000 };
+  if (data.type === "action") {
+    // A notification message, not data-only: Android shows it (and vibrates in the action's
+    // channel pattern) even when the app is closed. Some phones (vivo, Xiaomi, Oppo...) never wake
+    // a closed app for data-only messages, so those never arrived.
+    const sym = data.circle === "friends" ? "★" : "♥";
+    android.notification = {
+      title: `${sym} ${data.fromName} ${PAST[data.action] || "said hi"}`,
+      body: "Tap to send one back",
+      channelId: `pa3_${data.circle}_${data.action}`,
+      icon: "ic_w_people",
+      tag: `people_${data.groupId}`,
+      defaultVibrateTimings: false,
+      notificationPriority: "PRIORITY_HIGH",
+      clickAction: "com.athulsn10.glancekit.OPEN_PEOPLE",
+    };
+  }
   const res = await admin.messaging().sendEachForMulticast({
     tokens: owners.map((o) => o.token),
     data,
-    android: { priority: "high", ttl: 60 * 60 * 1000 },
+    android,
   });
   const dead = [];
   res.responses.forEach((r, i) => {
@@ -201,7 +225,7 @@ exports.sendAction = logged("sendAction", async (req) => {
   if (req.data && req.data.warm) return { warm: true };
   // "Test alerts" in the app: push a hug to your own phone to check the whole path.
   if (req.data && req.data.test) {
-    const r = await push([uid], { type: "action", test: "1", groupId: "test", circle: "couple", action: "hug", from: uid, fromName: "Glance Kit" });
+    const r = await push([uid], { type: "action", test: "1", groupId: "test", circle: "couple", action: "hug", from: uid, fromName: "Test:", tab: "people" });
     return { ...r, others: 1 };
   }
   const action = req.data && req.data.action;
@@ -219,7 +243,7 @@ exports.sendAction = logged("sendAction", async (req) => {
     ref.update({ lastFrom: uid, lastAction: action, lastAt: FieldValue.serverTimestamp() }),
     nameOf(ref, uid),
   ]);
-  const out = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24) });
+  const out = await push(others, { type: "action", groupId: ref.id, circle, action, from: uid, fromName: String(fromName).slice(0, 24), tab: "people" });
   if (out.sent < others.length) {
     await db.collection("logs").add({
       source: "server", fn: "sendAction", uid, code: "not-delivered", input: { groupId: ref.id, action },

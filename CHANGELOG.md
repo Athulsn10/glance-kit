@@ -3,6 +3,17 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.7] - 2026-11-09
+
+### Fixed
+- Hugs, kisses and pokes reach phones even when Glance Kit is closed. They're now sent as
+  notifications that Android shows itself (vibrating in each action's pattern), instead of
+  messages that need to wake the app, which vivo, Xiaomi, Oppo and similar phones block.
+
+### Added
+- On those phones, People asks you to let Glance Kit run in the background, with a shortcut.
+- Tapping a hug notification opens People.
+
 ## [1.20.6] - 2026-11-09
 
 ### Fixed
