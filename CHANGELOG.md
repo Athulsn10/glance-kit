@@ -3,6 +3,18 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.20.5] - 2026-11-09
+
+### Fixed
+- Sending from the widget no longer gives up after 9 seconds (the cloud can take longer to wake);
+  it now runs as a short background job and reports how it went.
+- Error messages say what actually went wrong instead of always "check your internet".
+
+### Added
+- People error reports, from the app and from Cloud Functions, saved in Firebase for 14 days
+  (no names, places or codes), readable with Actions > Backend logs.
+- Every Cloud Functions call is logged with its duration and result.
+
 ## [1.20.4] - 2026-11-09
 
 ### Fixed

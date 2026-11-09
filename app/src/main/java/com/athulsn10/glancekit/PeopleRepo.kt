@@ -78,7 +78,8 @@ object PeopleRepo {
         if (!init(c)) return null
         val auth = FirebaseAuth.getInstance()
         auth.currentUser?.let { return it.uid }
-        return runCatching { auth.signInAnonymously().await().user?.uid }.getOrNull()
+        return runCatching { auth.signInAnonymously().await().user?.uid }
+            .onFailure { PeopleLog.e(c, "sign in", it) }.getOrNull()
     }
 
     fun uidNow(c: Context): String? = if (init(c)) FirebaseAuth.getInstance().currentUser?.uid else null
@@ -287,6 +288,7 @@ object PeopleRepo {
         val ids = groupIds ?: cached(c).map { it.group.id }
         for (gid in ids) {
             runCatching { db().collection("groups").document(gid).collection("members").document(uid).set(data, SetOptions.merge()).await() }
+                .onFailure { PeopleLog.e(c, "push profile", it) }
         }
         pushToken(c)
     }
@@ -294,11 +296,11 @@ object PeopleRepo {
     suspend fun pushToken(c: Context, token: String? = null) {
         val uid = uid(c) ?: return
         val t = token ?: runCatching { FirebaseMessaging.getInstance().token.await() }
-            .onFailure { notePush(c, false, "Couldn't get a push token: ${it.message}") }.getOrNull() ?: return
+            .onFailure { notePush(c, false, "Couldn't get a push token: ${it.message}"); PeopleLog.e(c, "push token", it) }.getOrNull() ?: return
         runCatching {
             db().collection("tokens").document(uid).set(mapOf("token" to t, "updatedAt" to FieldValue.serverTimestamp())).await()
         }.onSuccess { notePush(c, true, null) }
-            .onFailure { notePush(c, false, "Couldn't save the push token: ${it.message}") }
+            .onFailure { notePush(c, false, "Couldn't save the push token: ${it.message}"); PeopleLog.e(c, "save push token", it) }
     }
 
     private const val K_PUSH_OK = "people_push_ok"
@@ -319,7 +321,8 @@ object PeopleRepo {
     /** Download my groups and everyone in them, and keep a copy on the phone. */
     suspend fun refresh(c: Context): List<GroupData> {
         val uid = uid(c) ?: return cached(c)
-        val snap = runCatching { db().collection("groups").whereArrayContains("members", uid).get().await() }.getOrNull() ?: return cached(c)
+        val snap = runCatching { db().collection("groups").whereArrayContains("members", uid).get().await() }
+            .onFailure { PeopleLog.e(c, "refresh groups", it) }.getOrNull() ?: return cached(c)
         val out = ArrayList<GroupData>()
         for (doc in snap.documents) {
             @Suppress("UNCHECKED_CAST")

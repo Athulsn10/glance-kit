@@ -263,7 +263,7 @@ class MainActivity : Activity(), SensorEventListener {
         peopleSyncedAt = now
         val app = applicationContext
         peopleScope.launch {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { PeopleRepo.refresh(app) } }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { PeopleRepo.refresh(app); PeopleLog.flush(app) } }
             PeopleViews.update(app)
             adapter.notifyItemChanged(TAB_PEOPLE)
             startPeopleLive()

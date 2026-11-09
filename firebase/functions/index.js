@@ -13,6 +13,48 @@ admin.initializeApp();
 setGlobalOptions({ region: "asia-south1", maxInstances: 5, memory: "512MiB", cpu: 1, concurrency: 20 });
 
 const db = admin.firestore();
+
+/**
+ * Wraps a callable so every call is logged (Cloud Logging) and every failure is also kept in
+ * Firestore logs/ for 14 days, where the "Backend logs" workflow can read it.
+ */
+function logged(name, handler) {
+  return onCall(async (req) => {
+    const started = Date.now();
+    const uid = (req.auth && req.auth.uid) || null;
+    const input = summarize(req.data);
+    try {
+      const out = await handler(req);
+      console.log(JSON.stringify({ fn: name, uid, ms: Date.now() - started, input, ok: true }));
+      return out;
+    } catch (e) {
+      const code = e instanceof HttpsError ? e.code : "internal";
+      const entry = {
+        source: "server", fn: name, uid, ms: Date.now() - started, input,
+        code, message: String(e && e.message || e).slice(0, 500),
+        stack: e instanceof HttpsError ? null : String(e && e.stack || "").slice(0, 1500),
+      };
+      console.error(JSON.stringify(entry));
+      try {
+        await db.collection("logs").add({ ...entry, at: FieldValue.serverTimestamp(), expiresAt: Timestamp.fromMillis(Date.now() + 14 * 86400000) });
+      } catch (_) { /* logging must never hide the real error */ }
+      if (e instanceof HttpsError) throw e;
+      throw new HttpsError("internal", `${name} failed: ${entry.message}`.slice(0, 200));
+    }
+  });
+}
+
+/** What was sent, without anything personal (no names, places or codes in full). */
+function summarize(d) {
+  if (!d || typeof d !== "object") return d === undefined ? null : typeof d;
+  const out = {};
+  for (const [k, v] of Object.entries(d)) {
+    if (k === "code" && typeof v === "string") out[k] = `${v.length} chars`;
+    else if (k === "name") out[k] = typeof v;
+    else out[k] = v === null || ["number", "boolean"].includes(typeof v) ? v : typeof v === "string" ? v.slice(0, 40) : typeof v;
+  }
+  return out;
+}
 const { FieldValue, Timestamp } = admin.firestore;
 
 const CIRCLES = {
@@ -38,7 +80,7 @@ function newCode() {
 }
 
 async function groupFor(uid, gid) {
-  if (typeof gid !== "string" || !gid || gid.length > 64) throw new HttpsError("invalid-argument", "Unknown group.");
+  if (typeof gid !== "string" || !gid || gid.length > 64) throw new HttpsError("invalid-argument", `Unknown group (${gid === undefined ? "missing" : typeof gid}).`);
   const ref = db.collection("groups").doc(gid);
   const snap = await ref.get();
   if (!snap.exists || !(snap.get("members") || []).includes(uid)) throw new HttpsError("permission-denied", "You're not in this group.");
@@ -87,7 +129,7 @@ async function nameOf(gref, uid) {
 }
 
 /** Make a code. Creates a new group, or (family) invites into an existing one. */
-exports.createInvite = onCall(async (req) => {
+exports.createInvite = logged("createInvite", async (req) => {
   const uid = needUser(req);
   const circle = req.data && req.data.circle;
   if (!CIRCLES[circle]) throw new HttpsError("invalid-argument", "Pick Partner, Friend or Family.");
@@ -123,7 +165,7 @@ exports.createInvite = onCall(async (req) => {
 });
 
 /** Join a group with someone's code. */
-exports.joinWithCode = onCall(async (req) => {
+exports.joinWithCode = logged("joinWithCode", async (req) => {
   const uid = needUser(req);
   const code = String((req.data && req.data.code) || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (code.length !== 6) throw new HttpsError("invalid-argument", "Codes have 6 letters and numbers.");
@@ -153,7 +195,7 @@ exports.joinWithCode = onCall(async (req) => {
 });
 
 /** Send a hug, poke, etc. Buzzes everyone else in the group (never the sender). */
-exports.sendAction = onCall(async (req) => {
+exports.sendAction = logged("sendAction", async (req) => {
   const uid = needUser(req);
   // The app calls this with warm: true when People opens, so the first real send is quick.
   if (req.data && req.data.warm) return { warm: true };
@@ -166,7 +208,7 @@ exports.sendAction = onCall(async (req) => {
   const rate = db.collection("rate").doc(uid);
   const [{ ref, snap }, r] = await Promise.all([groupFor(uid, req.data && req.data.groupId), rate.get()]);
   const circle = snap.get("circle");
-  if (!CIRCLES[circle].actions.includes(action)) throw new HttpsError("invalid-argument", "Unknown action.");
+  if (!CIRCLES[circle].actions.includes(action)) throw new HttpsError("invalid-argument", `Unknown action "${action}" for ${circle}.`);
 
   // A little rate limit, so a stuck finger doesn't send fifty hugs.
   if (r.exists && Date.now() - r.get("at").toMillis() < ACTION_GAP_MS) throw new HttpsError("resource-exhausted", "Slow down a little.");
@@ -182,7 +224,7 @@ exports.sendAction = onCall(async (req) => {
 });
 
 /** Leave a group. Deletes your profile and location from it; the group goes when empty. */
-exports.leaveGroup = onCall(async (req) => {
+exports.leaveGroup = logged("leaveGroup", async (req) => {
   const uid = needUser(req);
   const { ref, snap } = await groupFor(uid, req.data && req.data.groupId);
   const name = await nameOf(ref, uid);

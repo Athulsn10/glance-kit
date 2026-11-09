@@ -63,15 +63,9 @@ class PeopleWidget : AppWidgetProvider() {
         val gid = intent.getStringExtra(EXTRA_GROUP) ?: return
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
         // No buzz here: only the people you send it to feel it.
-        val pending = goAsync()
-        CoroutineScope(Dispatchers.IO).launch {
-            val res = withTimeoutOrNull(9_000) { runCatching { PeopleRepo.send(context, gid, action) }.getOrNull() }
-            val gd = PeopleRepo.cached(context).firstOrNull { it.group.id == gid }
-            val label = gd?.group?.circle?.action(action)?.label ?: "Hi"
-            val msg = res?.message(label, gd?.others?.firstOrNull()?.name ?: "their") ?: "Couldn't send. Check your internet."
-            CoroutineScope(Dispatchers.Main).launch { Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
-            pending.finish()
-        }
+        // Sent from a short background job: the cloud can take a while to wake, longer than a
+        // widget tap is allowed to run for.
+        PeopleSendWork.enqueue(context, gid, action)
     }
 
     companion object {
@@ -196,6 +190,7 @@ class PeopleSync(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
     override suspend fun doWork(): Result {
         val c = applicationContext
         if (!PeopleRepo.init(c)) return Result.success()
+        PeopleLog.flush(c)
         val groups = PeopleRepo.refresh(c)
         if (groups.isEmpty()) { PeopleViews.update(c); return Result.success() }
         val loc = if (PeopleRepo.paused(c)) null else PeopleRepo.locate(c)
@@ -234,6 +229,38 @@ class PeopleSync(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
             val attrs = android.os.VibrationAttributes.Builder()
                 .setUsage(android.os.VibrationAttributes.USAGE_COMMUNICATION_REQUEST).build()
             runCatching { v.vibrate(VibrationEffect.createWaveform(pattern, -1), attrs) }
+        }
+    }
+}
+
+/** Sends a hug, poke etc. from the widget button, then says how it went. */
+class PeopleSendWork(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+    override suspend fun doWork(): Result {
+        val c = applicationContext
+        val gid = inputData.getString("group") ?: return Result.success()
+        val action = inputData.getString("action") ?: return Result.success()
+        val gd = PeopleRepo.cached(c).firstOrNull { it.group.id == gid }
+        val label = gd?.group?.circle?.action(action)?.label ?: "Hi"
+        val res = withTimeoutOrNull(45_000) { runCatching { PeopleRepo.send(c, gid, action) } }
+        val msg = when {
+            res == null -> {
+                PeopleLog.e(c, "widget send $action", IllegalStateException("Timed out after 45 s"))
+                "That took too long. Check your internet and try again."
+            }
+            res.isSuccess -> res.getOrThrow().message(label, gd?.others?.firstOrNull()?.name ?: "their")
+            else -> { val e = res.exceptionOrNull()!!; PeopleLog.e(c, "widget send $action", e); PeopleLog.friendly(e) }
+        }
+        android.os.Handler(android.os.Looper.getMainLooper()).post { Toast.makeText(c, msg, Toast.LENGTH_SHORT).show() }
+        return Result.success()
+    }
+
+    companion object {
+        fun enqueue(c: Context, gid: String, action: String) {
+            val req = OneTimeWorkRequestBuilder<PeopleSendWork>()
+                .setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .setInputData(androidx.work.workDataOf("group" to gid, "action" to action))
+                .build()
+            WorkManager.getInstance(c).enqueue(req)
         }
     }
 }

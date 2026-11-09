@@ -52,6 +52,17 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
+    // Error reports from the app (write-only; read by the "Backend logs" workflow).
+    match /logs/{id} {
+      allow create: if signedIn()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.source == "app"
+        && request.resource.data.keys().hasOnly(['source', 'uid', 'where', 'type', 'code', 'message', 'detail', 'app', 'android', 'device', 'at'])
+        && request.resource.data.message is string && request.resource.data.message.size() <= 600
+        && (!('detail' in request.resource.data) || (request.resource.data.detail is string && request.resource.data.detail.size() <= 1500));
+      allow read, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

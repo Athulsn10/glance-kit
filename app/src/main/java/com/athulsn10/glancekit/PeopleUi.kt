@@ -211,7 +211,7 @@ object PeoplePage {
                             if (it.sent > 0) null
                             else if (it.tokens == 0) "This phone isn't registered for alerts. " + (PeopleRepo.pushStatus(c).second ?: "Check your internet and try again.")
                             else "The cloud couldn't reach this phone" + (it.error?.let { e -> " ($e)" } ?: "")
-                        }, { "Couldn't reach the cloud: ${it.message}" })
+                        }, { PeopleLog.e(c, "testAlert", it); PeopleLog.friendly(it) })
                         if (msg != null) Toast.makeText(c, msg, Toast.LENGTH_LONG).show()
                         refresh()
                     }
@@ -256,7 +256,7 @@ object PeoplePage {
                             // No buzz here: only the people you send it to feel it.
                             scope.launch {
                                 val res = withContext(Dispatchers.IO) { runCatching { PeopleRepo.send(c, g.id, act.key) } }
-                                val msg = res.fold({ it.message(act.label, other?.name ?: "their") }, { "Couldn't send. Check your internet." })
+                                val msg = res.fold({ it.message(act.label, other?.name ?: "their") }, { PeopleLog.e(c, "send ${act.key}", it); PeopleLog.friendly(it) })
                                 Toast.makeText(c, msg, if (res.getOrNull()?.sent ?: 0 > 0) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
                             }
                         }
@@ -279,14 +279,17 @@ object PeoplePage {
                     .setMessage("You'll stop sharing with them, and they'll stop seeing you.")
                     .setPositiveButton("Leave") { _, _ ->
                         scope.launch {
-                            val ok = withContext(Dispatchers.IO) {
+                            val err = withContext(Dispatchers.IO) {
                                 runCatching {
                                     PeopleRepo.leave(c, g.id) {
                                         scope.launch(Dispatchers.Main) { PeopleViews.update(c); refresh() }
                                     }
-                                }.isSuccess
+                                }.exceptionOrNull()
                             }
-                            if (!ok) Toast.makeText(c, "Couldn't leave. Check your internet.", Toast.LENGTH_SHORT).show()
+                            if (err != null) {
+                                PeopleLog.e(c, "leave", err)
+                                Toast.makeText(c, "Couldn't leave: " + PeopleLog.friendly(err), Toast.LENGTH_LONG).show()
+                            }
                             PeopleViews.update(c); refresh()
                         }
                     }
@@ -325,7 +328,7 @@ object PeoplePage {
                     }
                     .setNegativeButton("Done", null).show()
                 if (!PeopleRepo.hasFine(a)) a.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), REQ_FINE)
-            }.onFailure { Toast.makeText(a, it.message ?: "Couldn't make a code.", Toast.LENGTH_LONG).show() }
+            }.onFailure { PeopleLog.e(a, "createInvite ${circle.key}", it); Toast.makeText(a, PeopleLog.friendly(it), Toast.LENGTH_LONG).show() }
         }
     }
 
@@ -361,7 +364,8 @@ object PeoplePage {
                         Toast.makeText(a, "You're paired!", Toast.LENGTH_SHORT).show()
                         if (!PeopleRepo.hasFine(a)) a.requestPermissions(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), REQ_FINE)
                     }.onFailure {
-                        Toast.makeText(a, it.message?.takeIf { m -> m.length < 120 } ?: "That code didn't work.", Toast.LENGTH_LONG).show()
+                        PeopleLog.e(a, "join", it)
+                        Toast.makeText(a, PeopleLog.friendly(it), Toast.LENGTH_LONG).show()
                     }
                 }
             }

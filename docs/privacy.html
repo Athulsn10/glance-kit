@@ -88,6 +88,7 @@
     <li>the hugs, pokes and other actions you send</li>
   </ul>
   <p><strong>How it's sent.</strong> This goes through Google Firebase (Firestore database, Cloud Functions and Cloud Messaging), run by Google on our behalf. To use it, the app creates an anonymous ID with Firebase Authentication. There's no email, phone number or password. Firebase stores your phone's push token so actions can reach it. Database rules make sure only people in your group can read your details, and only you can change them. See <a href="https://firebase.google.com/support/privacy">Firebase privacy and security</a>.</p>
+  <p><strong>Error reports.</strong> If something in People fails (for example, a hug can't be sent), the app saves a short technical report in Firebase so the problem can be fixed: what failed, the error message, the app and Android version, the phone model and your anonymous ID. Reports never include your name, location, avatar or invite codes, and they're deleted after 14 days.</p>
   <p><strong>Location for People.</strong> People asks for <em>precise</em> location, so that "together" can work, and for "Allow all the time", so the distance can update in the background. Updates happen only at the interval you choose (every 15, 30 or 60 minutes), one location each time. Each new location replaces the last one. No location history is kept, here or in the cloud.</p>
   <p><strong>Your control.</strong> You can pause sharing at any time; the others then see you as paused. Leaving a group deletes your details from it straight away. A group is deleted when its last person leaves. Uninstalling the app stops all sharing. To have your anonymous ID and data removed, email us.</p>
 
@@ -119,7 +120,7 @@
   <p>Optional permissions can be turned off at any time in Android Settings. The rest of the app keeps working without them.</p>
 
   <h2>Sharing, selling and advertising</h2>
-  <p>Glance Kit does not sell or rent your data, and never uses it for advertising. Apart from the weather services above, and the people you choose to pair with through Firebase, nothing is shared. It contains no advertising, analytics or crash-reporting libraries.</p>
+  <p>Glance Kit does not sell or rent your data, and never uses it for advertising. Apart from the weather services above, and the people you choose to pair with through Firebase, nothing is shared. It contains no advertising, analytics or crash-reporting libraries; the only error reports are the People ones described above.</p>
 
   <h2>Keeping and deleting data</h2>
   <p>History such as steps, battery and data-use charts is kept on your phone for a limited time, up to about 40 days depending on the chart. To delete everything at once, clear the app's storage in Android Settings or uninstall the app.</p>

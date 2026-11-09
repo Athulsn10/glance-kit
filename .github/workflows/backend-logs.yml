@@ -1,0 +1,51 @@
+# Reads recent People error reports (from phones and from Cloud Functions) and shows them on the
+# run summary. Manual: Actions > Backend logs > Run workflow.
+name: Backend logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "How far back to look (hours)"
+        default: "24"
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firebase
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm ci --prefix functions
+
+      - name: Read error reports
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_DEPLOY_SA_JSON }}
+        run: |
+          echo "$SA_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          set +e
+          node tools/read-logs.js "${{ inputs.hours }}" 40 > reports.txt
+          code=$?
+          # Cloud Functions' own error logs too (needs the Logs Viewer role; skipped if missing).
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet >/dev/null 2>&1
+          gcloud logging read 'resource.type="cloud_run_revision" AND severity>=ERROR' --project glance-kit-cf358 \
+            --freshness="${{ inputs.hours }}h" --limit 15 --format='value(timestamp.date("%m-%d %H:%M:%S"),textPayload,jsonPayload.message)' > cloud.txt 2> cloud.err
+          rm -f "$RUNNER_TEMP/sa.json"
+          cat reports.txt; echo; cat cloud.txt cloud.err
+          {
+            echo "## Error reports (last ${{ inputs.hours }} h)"; echo '```'; cat reports.txt; echo '```'
+            echo "## Cloud Functions errors"; echo '```'; cat cloud.txt; head -3 cloud.err; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          enc() { cut -c1-400 | sed ':a;N;$!ba;s/%/%25/g;s/\r//g;s/\n/%0A/g'; }
+          echo "::notice title=Error reports::$(head -40 reports.txt | enc)"
+          if [ -s cloud.txt ]; then echo "::notice title=Cloud Functions errors::$(head -15 cloud.txt | enc)"
+          else echo "::notice title=Cloud Functions errors::none or not readable: $(head -2 cloud.err | enc)"; fi
+          exit $code
