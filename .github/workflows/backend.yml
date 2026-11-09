@@ -36,6 +36,14 @@ jobs:
           # Turn on the APIs the Firebase CLI checks but cannot enable itself.
           gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
           gcloud services enable cloudbilling.googleapis.com firebaseextensions.googleapis.com --project glance-kit-cf358 --quiet || true
+          # Ask Firebase to validate the push message first (dry run), so a bad one never ships.
+          if [[ "${{ inputs.only }}" == *functions* ]]; then
+            node tools/check-push.js | tee check.log
+            if grep -q INVALID check.log; then
+              echo "::error title=Push message rejected by Firebase::$(grep INVALID check.log | head -3 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+              exit 1
+            fi
+          fi
           set +e
           npx --yes firebase-tools@14 deploy --only "${{ inputs.only }}" --project glance-kit-cf358 --non-interactive --force 2>&1 | tee deploy.log
           code=${PIPESTATUS[0]}

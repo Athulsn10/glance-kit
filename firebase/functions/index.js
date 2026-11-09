@@ -4,6 +4,7 @@
  * and only the people in the same group can read it (see ../firestore.rules).
  */
 const crypto = require("crypto");
+const { buildMessage } = require("./message");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
@@ -95,33 +96,10 @@ async function tokensFor(uids) {
 }
 
 /** Send a data push to these people and forget tokens that no longer work. */
-// What each action says on the other phone (matches PeopleModel.kt).
-const PAST = {
-  hug: "sent a hug", miss: "misses you", kiss: "sent a kiss",
-  highfive: "sent a high five", poke: "poked you", hangout: "wants to hang out",
-  home: "got home safe", call: "asked you to call", love: "sends love",
-};
-
 async function push(uids, data) {
   const owners = await tokensFor(uids);
   if (!owners.length) return { sent: 0, tokens: 0, error: null };
-  const android = { priority: "high", ttl: 60 * 60 * 1000 };
-  if (data.type === "action") {
-    // A notification message, not data-only: Android shows it (and vibrates in the action's
-    // channel pattern) even when the app is closed. Some phones (vivo, Xiaomi, Oppo...) never wake
-    // a closed app for data-only messages, so those never arrived.
-    const sym = data.circle === "friends" ? "★" : "♥";
-    android.notification = {
-      title: `${sym} ${data.fromName} ${PAST[data.action] || "said hi"}`,
-      body: "Tap to send one back",
-      channelId: `pa3_${data.circle}_${data.action}`,
-      icon: "ic_w_people",
-      tag: `people_${data.groupId}`,
-      defaultVibrateTimings: false,
-      notificationPriority: "PRIORITY_HIGH",
-      clickAction: "com.athulsn10.glancekit.OPEN_PEOPLE",
-    };
-  }
+  const { android } = buildMessage(data);
   const res = await admin.messaging().sendEachForMulticast({
     tokens: owners.map((o) => o.token),
     data,
@@ -135,7 +113,11 @@ async function push(uids, data) {
   await Promise.all(dead);
   const firstErr = res.responses.find((r) => r.error);
   if (firstErr) console.warn("push error", firstErr.error.code, firstErr.error.message);
-  return { sent: res.successCount, tokens: owners.length, error: firstErr ? firstErr.error.code : null };
+  return {
+    sent: res.successCount, tokens: owners.length,
+    error: firstErr ? firstErr.error.code : null,
+    errorMessage: firstErr ? String(firstErr.error.message).slice(0, 300) : null,
+  };
 }
 
 /** Tell the others in a group to refetch it now (someone joined or left). Never fails the call. */
@@ -247,7 +229,7 @@ exports.sendAction = logged("sendAction", async (req) => {
   if (out.sent < others.length) {
     await db.collection("logs").add({
       source: "server", fn: "sendAction", uid, code: "not-delivered", input: { groupId: ref.id, action },
-      message: `Reached ${out.sent} of ${others.length} (tokens ${out.tokens}, error ${out.error || "none"})`,
+      message: `Reached ${out.sent} of ${others.length} (tokens ${out.tokens}, error ${out.error || "none"}${out.errorMessage ? ": " + out.errorMessage : ""})`,
       at: FieldValue.serverTimestamp(),
     }).catch(() => {});
   }
