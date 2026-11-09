@@ -64,7 +64,7 @@ const CIRCLES = {
 };
 const MAX_GROUPS = 10;
 const CODE_MINUTES = 10;
-const ACTION_GAP_MS = 3000;
+const ACTION_GAP_MS = 1000; // just enough to stop a stuck finger
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
 
 function needUser(req) {
@@ -211,7 +211,7 @@ exports.sendAction = logged("sendAction", async (req) => {
   if (!CIRCLES[circle].actions.includes(action)) throw new HttpsError("invalid-argument", `Unknown action "${action}" for ${circle}.`);
 
   // A little rate limit, so a stuck finger doesn't send fifty hugs.
-  if (r.exists && Date.now() - r.get("at").toMillis() < ACTION_GAP_MS) throw new HttpsError("resource-exhausted", "Slow down a little.");
+  if (r.exists && Date.now() - r.get("at").toMillis() < ACTION_GAP_MS) throw new HttpsError("resource-exhausted", "Wait a second before sending another.");
 
   const others = (snap.get("members") || []).filter((m) => m !== uid);
   const [, , fromName] = await Promise.all([

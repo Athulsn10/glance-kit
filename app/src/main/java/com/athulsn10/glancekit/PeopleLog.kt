@@ -29,6 +29,11 @@ object PeopleLog {
             .put("code", code(t) ?: "")
             .put("message", (t.message ?: "").take(600))
             .put("detail", (detail ?: t.stackTrace.take(6).joinToString(" < ") { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" }).take(1500))
+        // The same failure repeating (e.g. on every sync) is reported once an hour.
+        val key = "people_log_last_" + (where + t.javaClass.simpleName + (t.message ?: "")).hashCode()
+        val now = System.currentTimeMillis()
+        if (now - Store.prefs(c).getLong(key, 0) < 3_600_000) return
+        Store.prefs(c).edit().putLong(key, now).apply()
         val uid = PeopleRepo.uidNow(c)
         if (uid == null) { keep(c, entry); return }
         flush(c)
