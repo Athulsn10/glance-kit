@@ -50,10 +50,18 @@ jobs:
           echo "tag=v$name" >> "$GITHUB_OUTPUT"
 
       - name: Check this version hasn't been released
+        id: chk
         run: |
-          if git rev-parse -q --verify "refs/tags/${{ steps.v.outputs.tag }}" >/dev/null; then
-            echo "::error::${{ steps.v.outputs.tag }} already exists. Bump VERSION_NAME in version.properties."
-            exit 1
+          tag="${{ steps.v.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            # Already on GitHub, and nothing but workflows changed since: allowed when sending it to Play.
+            if [ "${{ inputs.play }}" = "true" ] && git diff --quiet "$tag" HEAD -- . ':(exclude).github'; then
+              echo "::notice::$tag is already on GitHub; uploading it to Play only."
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "::error::$tag already exists. Bump VERSION_NAME in version.properties."
+              exit 1
+            fi
           fi
           python3 scripts/changelog_section.py "${{ steps.v.outputs.name }}" > release_notes.md
           chars=$(wc -m < distribution/whatsnew/whatsnew-en-US)
@@ -102,6 +110,7 @@ jobs:
           whatsNewDirectory: distribution/whatsnew
 
       - name: Tag and publish the GitHub release
+        if: ${{ steps.chk.outputs.exists != 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.v.outputs.tag }}
