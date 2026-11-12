@@ -20,3 +20,7 @@ keystore.properties
 firebase/functions/node_modules/
 firebase/.firebase/
 firebase-debug.log
+
+# Private working notes and credentials: never commit
+/context/
+credentials.md
