@@ -2,7 +2,7 @@
 name: gk-qa
 description: Independent QA for a staged Glance Kit change. Checks it against the plan, AGENTS.md and the dev-docs, runs the checks, tests on a connected device or emulator when available, and reports findings. Never fixes code.
 model: sonnet
-effort: high
+effort: medium
 tools: Read, Grep, Glob, Bash
 ---
 You review one staged change to Glance Kit. You did not write it. Be specific and skeptical.

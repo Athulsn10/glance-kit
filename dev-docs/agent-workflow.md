@@ -15,8 +15,8 @@ Start a task in a new Claude Code session on **Opus** with:
 |---|---|---|---|---|
 | Orchestrator | the session | Opus | Reads the docs, writes the plan file, asks you, reads the two reports, fixes small things, commits and pushes when told | Reads whole diffs, runs Gradle or emulators, builds features |
 | Finder | `gk-finder` agent | Haiku | "Where is X / which files touch Y": paths and one-line answers | Edits anything |
-| Implementer | `gk-implementer` agent | Sonnet, high effort | Builds the plan, runs build and checks, stages files, reports (≤ 60 lines) | Commits, pushes, releases, deploys |
-| QA | `gk-qa` agent | Sonnet, high effort | Checks staged work against the plan and AGENTS.md, runs checks and device tests, reports findings (≤ 80 lines) | Fixes code |
+| Implementer | `gk-implementer` agent | Sonnet, medium effort | Builds the plan, runs build and checks, stages files, reports (≤ 60 lines) | Commits, pushes, releases, deploys |
+| QA | `gk-qa` agent | Sonnet, medium effort | Checks staged work against the plan and AGENTS.md, runs checks and device tests, reports findings (≤ 80 lines) | Fixes code |
 
 Agent definitions: `.claude/agents/`. Orchestrator steps: `.claude/skills/agent-workflow/SKILL.md`.
 

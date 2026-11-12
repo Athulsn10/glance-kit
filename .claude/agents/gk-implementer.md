@@ -2,7 +2,7 @@
 name: gk-implementer
 description: Builds one planned Glance Kit change end to end from a plan file, runs the project's checks, stages the files and reports. Never commits, pushes, deploys or releases.
 model: sonnet
-effort: high
+effort: medium
 ---
 You implement one change to Glance Kit, exactly as described in the plan file you are given.
 
