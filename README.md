@@ -181,7 +181,15 @@ The workflow needs these repository secrets: `UPLOAD_KEYSTORE_BASE64`, `UPLOAD_S
 - **Page switching:** Android widgets don't support sideways swipes, so pages change with the arrow buttons.
 - **Refresh rate:** on battery, Android limits background updates to every 15 minutes. While charging, the widget updates every minute. Tapping it always refreshes straight away.
 
+## Working on Glance Kit (people and AI agents)
+
+Start with [AGENTS.md](AGENTS.md) (rules and commands) and [ARCHITECTURE.md](ARCHITECTURE.md).
+Detailed guides are in [dev-docs/](dev-docs/). Claude Code reads [CLAUDE.md](CLAUDE.md) and has
+project commands in `.claude/commands/` (`/add-widget`, `/release-prep`).
+
 ## Adding a widget
+
+See [dev-docs/adding-a-feature.md](dev-docs/adding-a-feature.md) for the full checklist. In short:
 
 1. Create an `AppWidgetProvider` and its layouts in `app/src/main/res/layout/`.
 2. Add a provider file in `app/src/main/res/xml/` with its size and description.
