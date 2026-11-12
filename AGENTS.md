@@ -24,6 +24,7 @@ widgets are `RemoteViews`. People has a small Firebase backend.
 | [dev-docs/adding-a-feature.md](dev-docs/adding-a-feature.md) | Adding a widget, tab, setting or action |
 | [dev-docs/testing-and-debugging.md](dev-docs/testing-and-debugging.md) | Tests, logs, known pitfalls |
 | [dev-docs/release.md](dev-docs/release.md) | Versioning, CI workflows, releasing |
+| [dev-docs/agent-workflow.md](dev-docs/agent-workflow.md) | Running a change with planner / implementer / QA agents |
 
 ## Commands
 ```bash

@@ -185,7 +185,9 @@ The workflow needs these repository secrets: `UPLOAD_KEYSTORE_BASE64`, `UPLOAD_S
 
 Start with [AGENTS.md](AGENTS.md) (rules and commands) and [ARCHITECTURE.md](ARCHITECTURE.md).
 Detailed guides are in [dev-docs/](dev-docs/). Claude Code reads [CLAUDE.md](CLAUDE.md) and has
-project commands in `.claude/commands/` (`/add-widget`, `/release-prep`).
+project commands in `.claude/commands/` (`/add-widget`, `/release-prep`). For bigger changes,
+`/agent-workflow <task>` runs a plan → build → QA → review loop with sub-agents
+([dev-docs/agent-workflow.md](dev-docs/agent-workflow.md)).
 
 ## Adding a widget
 
