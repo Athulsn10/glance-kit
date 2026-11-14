@@ -12,7 +12,9 @@ their own vibration pattern.
   RECEIVED for 10 min after an action, PAUSED or stale after 3 h).
 - `People`: distance (haversine), formatting, scene and mood choice, widget text lines.
 - Avatars (`AvatarArt.kt`): gender, skin, hair, style, outfit, colour, extras; 16 presets;
-  12 moods; arm poses. Drawn on a Canvas. Extras are one per spot (`EXTRA_SLOTS`: eyes, head,
+  12 moods; arm poses. Drawn on a Canvas: hair from tapered `lock`s over a `dome`, a torso
+  path with `arm`s (sleeve, forearm, hand) for every pose in `Arms`. The face block is separate
+  and was left as it was when the rest was restyled in 1.22.0. Extras are one per spot (`EXTRA_SLOTS`: eyes, head,
   clip, ears); `Avatar.sane()` trims anything else, so old or remote avatars can't stack hats.
   Add outfits, colours and extras at the END of their lists: values an older app doesn't know
   fall back (plain tee, last colour, extra dropped). Don't add avatar fields without changing

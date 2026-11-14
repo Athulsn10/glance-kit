@@ -21,9 +21,9 @@ All are callable (`onCall`) and wrapped in `logged()`, which logs each call and 
 failures in `logs/`.
 | Function | Does |
 |---|---|
-| `createInvite({circle, groupId?})` | New group (or invite into a family group) + 6-char code |
+| `createInvite({circle, groupId?})` | New group (or invite into a family group) + 6-char code. Reuses your group of that circle if nobody has joined it yet |
 | `joinWithCode({code, name})` | Joins in a transaction; tells existing members (sync push) |
-| `sendAction({groupId, action})` | Rate limit, updates lastAction, pushes to the others. `{warm:true}` just wakes the function; `{test:true}` pushes to yourself |
+| `sendAction({groupId, action})` | Rate limit, updates lastAction, pushes to the others (one retry on FCM `internal-error` / `server-unavailable`). `{warm:true}` just wakes the function; `{test:true}` pushes to yourself |
 | `leaveGroup({groupId})` | Removes you; deletes the group when empty; tells the others |
 
 ## Push messages (`functions/message.js`)

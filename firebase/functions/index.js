@@ -68,6 +68,7 @@ const MAX_GROUPS = 10;
 const CODE_MINUTES = 10;
 const ACTION_GAP_MS = 1000; // just enough to stop a stuck finger
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
+const TRANSIENT = new Set(["messaging/internal-error", "messaging/server-unavailable"]); // worth one retry
 
 function needUser(req) {
   const uid = req.auth && req.auth.uid;
@@ -101,11 +102,16 @@ async function push(uids, data) {
   const owners = await tokensFor(uids);
   if (!owners.length) return { sent: 0, tokens: 0, error: null };
   const { android } = buildMessage(data);
-  const res = await admin.messaging().sendEachForMulticast({
-    tokens: owners.map((o) => o.token),
-    data,
-    android,
-  });
+  const send = (tokens) => admin.messaging().sendEachForMulticast({ tokens, data, android });
+  const res = await send(owners.map((o) => o.token));
+  // Firebase now and then answers "internal error" or "unavailable" for a message that goes
+  // through a moment later (seen in the logs as a kiss that reached 0 of 1). Try those once more.
+  const again = res.responses.map((r, i) => (r.error && TRANSIENT.has(r.error.code) ? i : -1)).filter((i) => i >= 0);
+  if (again.length) {
+    await new Promise((done) => setTimeout(done, 400));
+    const second = await send(again.map((i) => owners[i].token));
+    second.responses.forEach((r, k) => { res.responses[again[k]] = r; });
+  }
   const dead = [];
   res.responses.forEach((r, i) => {
     const code = r.error && r.error.code;
@@ -115,7 +121,7 @@ async function push(uids, data) {
   const firstErr = res.responses.find((r) => r.error);
   if (firstErr) console.warn("push error", firstErr.error.code, firstErr.error.message);
   return {
-    sent: res.successCount, tokens: owners.length,
+    sent: res.responses.filter((r) => r.success).length, tokens: owners.length,
     error: firstErr ? firstErr.error.code : null,
     errorMessage: firstErr ? String(firstErr.error.message).slice(0, 300) : null,
   };
@@ -148,11 +154,19 @@ exports.createInvite = logged("createInvite", async (req) => {
       throw new HttpsError("failed-precondition", "This group is full.");
     }
   } else {
-    const mine = await db.collection("groups").where("members", "array-contains", uid).count().get();
-    if (mine.data().count >= MAX_GROUPS) throw new HttpsError("resource-exhausted", `You can be in up to ${MAX_GROUPS} groups.`);
-    const ref = db.collection("groups").doc();
-    await ref.set({ circle, members: [uid], createdBy: uid, createdAt: FieldValue.serverTimestamp() });
-    gid = ref.id;
+    const mine = await db.collection("groups").where("members", "array-contains", uid).get();
+    // Asking for a code again while nobody has joined the last one reuses that group. Each code
+    // used to make a new group, so a few tries left people with a pile of empty groups (and
+    // heading for the limit).
+    const waiting = mine.docs.find((d) => d.get("circle") === circle && (d.get("members") || []).length === 1);
+    if (waiting) {
+      gid = waiting.id;
+    } else {
+      if (mine.size >= MAX_GROUPS) throw new HttpsError("resource-exhausted", `You can be in up to ${MAX_GROUPS} groups.`);
+      const ref = db.collection("groups").doc();
+      await ref.set({ circle, members: [uid], createdBy: uid, createdAt: FieldValue.serverTimestamp() });
+      gid = ref.id;
+    }
   }
 
   for (let attempt = 0; attempt < 6; attempt++) {

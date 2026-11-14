@@ -8,7 +8,9 @@ import android.graphics.RectF
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.sin
 
@@ -235,29 +237,68 @@ object AvatarArt {
         if (tilt != 0f) c.rotate(tilt, X, Y + r * 0.6f)
 
         // ---------- hair behind the head ----------
+        val hi = Color.argb(80, 255, 255, 255)
+        val lo = darker(hr, 0.78f)
+        fun shape(col: Int) { path.close(); fill.color = col; c.drawPath(path, fill) }
         if (girl) when (st) {
-            "long" -> c.rrect(X - r * 1.06f, Y - r * 0.5f, X + r * 1.06f, Y + r * 1.12f, r * 0.62f, hr)
-            "bob" -> c.rrect(X - r * 1.1f, Y - r * 0.6f, X + r * 1.1f, Y + r * 0.62f, r * 0.5f, hr)
-            "curly" -> for (deg in 0 until 360 step 30) {
-                val t = Math.toRadians(deg.toDouble())
-                val px = X + r * 0.95f * cos(t).toFloat(); val py = Y + r * 0.2f + r * 0.85f * sin(t).toFloat()
-                c.oval(px - r * 0.32f, py - r * 0.32f, px + r * 0.32f, py + r * 0.32f, hr)
+            "long" -> { // falls behind the shoulders, wavy at the ends
+                path.reset(); path.moveTo(X - r * 1.06f, Y - r * 0.2f)
+                path.cubicTo(X - r * 1.32f, Y + r * 0.7f, X - r * 1.1f, Y + r * 1.25f, X - r * 0.8f, Y + r * 1.5f)
+                path.quadTo(X - r * 0.4f, Y + r * 1.32f, X, Y + r * 1.46f)
+                path.quadTo(X + r * 0.4f, Y + r * 1.32f, X + r * 0.8f, Y + r * 1.5f)
+                path.cubicTo(X + r * 1.1f, Y + r * 1.25f, X + r * 1.32f, Y + r * 0.7f, X + r * 1.06f, Y - r * 0.2f)
+                shape(lo)
+                for (k in -3..3) if (k != 0) c.line(X + k * r * 0.3f, Y + r * 0.9f, X + k * r * 0.27f, Y + r * 1.4f, Color.argb(50, 0, 0, 0), max(1f, lw * 0.5f))
             }
-            "ponytail" -> c.oval(X + r * 0.55f, Y - r * 0.55f, X + r * 1.45f, Y + r * 0.85f, hr)
+            "bob" -> {
+                path.reset(); path.moveTo(X - r * 1.1f, Y - r * 0.3f)
+                path.cubicTo(X - r * 1.28f, Y + r * 0.55f, X - r * 1.0f, Y + r * 0.98f, X - r * 0.55f, Y + r * 0.88f)
+                path.lineTo(X + r * 0.55f, Y + r * 0.88f)
+                path.cubicTo(X + r * 1.0f, Y + r * 0.98f, X + r * 1.28f, Y + r * 0.55f, X + r * 1.1f, Y - r * 0.3f)
+                shape(lo)
+            }
+            "curly" -> for (deg in 0 until 360 step 24) {
+                val t = Math.toRadians(deg.toDouble())
+                val px = X + r * 1.0f * cos(t).toFloat(); val py = Y + r * 0.22f + r * 0.92f * sin(t).toFloat()
+                c.oval(px - r * 0.27f, py - r * 0.27f, px + r * 0.27f, py + r * 0.27f, if (deg % 48 == 0) hr else lo)
+            }
+            "ponytail" -> {
+                path.reset(); path.moveTo(X + r * 0.7f, Y - r * 0.78f)
+                path.cubicTo(X + r * 1.75f, Y - r * 0.95f, X + r * 1.65f, Y + r * 0.6f, X + r * 1.15f, Y + r * 1.15f)
+                path.cubicTo(X + r * 1.3f, Y + r * 0.4f, X + r * 1.1f, Y - r * 0.1f, X + r * 0.75f, Y - r * 0.2f)
+                shape(hr)
+                c.arcLine(X + r * 0.9f, Y - r * 0.7f, X + r * 1.5f, Y + r * 0.6f, 300f, 20f, hi, lw * 1.2f)
+                c.oval(X + r * 0.76f, Y - r * 0.74f, X + r * 0.98f, Y - r * 0.5f, PINK)
+            }
             "pigtails" -> for (sx in intArrayOf(-1, 1)) {
-                c.oval(X + sx * r * 1.05f - r * 0.38f, Y, X + sx * r * 1.05f + r * 0.38f, Y + r * 0.95f, hr)
-                c.oval(X + sx * r * 0.92f - r * 0.12f, Y - r * 0.08f, X + sx * r * 0.92f + r * 0.12f, Y + r * 0.12f, PINK)
+                path.reset(); path.moveTo(X + sx * r * 0.95f, Y - r * 0.1f)
+                path.cubicTo(X + sx * r * 1.65f, Y + r * 0.1f, X + sx * r * 1.55f, Y + r * 0.95f, X + sx * r * 1.1f, Y + r * 1.2f)
+                path.cubicTo(X + sx * r * 0.98f, Y + r * 0.7f, X + sx * r * 0.9f, Y + r * 0.3f, X + sx * r * 0.95f, Y - r * 0.1f)
+                shape(hr)
+                c.oval(X + sx * r * 0.98f - r * 0.12f, Y - r * 0.12f, X + sx * r * 0.98f + r * 0.12f, Y + r * 0.12f, PINK)
             }
         }
-        if ("headphones" in acc) c.arcLine(X - r * 1.12f, Y - r * 1.2f, X + r * 1.12f, Y + r * 0.9f, 180f, 360f, rgb(46, 46, 52), r * 0.16f)
+        if ("headphones" in acc) c.arcLine(X - r * 1.1f, Y - r * 1.22f, X + r * 1.1f, Y + r * 0.9f, 180f, 360f, rgb(52, 52, 60), r * 0.15f)
 
         // ---------- body ----------
         val bw = s * 0.64f
         val bh = s * 0.52f
         val by0 = Y + r * 0.78f
-        if (a.outfit == "hoodie") c.oval(X - bw * 0.55f, by0 - r * 0.12f, X + bw * 0.55f, by0 + r * 0.42f, darker(sh))
-        // Overalls show a light shirt underneath; everything else is the outfit colour.
-        c.rrect(X - bw / 2, by0, X + bw / 2, by0 + bh, bw * 0.42f, if (a.outfit == "overalls") rgb(244, 238, 228) else sh)
+        val shadeC = darker(sh, 0.86f)
+        val baseC = if (a.outfit == "overalls") rgb(244, 238, 228) else sh
+        // Little shoes, so the body stands on something.
+        for (sx in intArrayOf(-1, 1)) c.oval(X + sx * bw * 0.2f - s * 0.1f, by0 + bh - s * 0.04f, X + sx * bw * 0.2f + s * 0.1f, by0 + bh + s * 0.055f, rgb(58, 54, 66))
+        if (a.outfit == "hoodie") c.oval(X - bw * 0.58f, by0 - r * 0.22f, X + bw * 0.58f, by0 + r * 0.5f, shadeC)
+        // Torso: rounded shoulders, a touch wider than the waist.
+        path.reset(); path.moveTo(X - bw * 0.52f, by0 + bh * 0.3f)
+        path.cubicTo(X - bw * 0.52f, by0 + bh * 0.02f, X - bw * 0.3f, by0, X, by0)
+        path.cubicTo(X + bw * 0.3f, by0, X + bw * 0.52f, by0 + bh * 0.02f, X + bw * 0.52f, by0 + bh * 0.3f)
+        path.lineTo(X + bw * 0.45f, by0 + bh * 0.84f); path.quadTo(X + bw * 0.44f, by0 + bh, X + bw * 0.28f, by0 + bh)
+        path.lineTo(X - bw * 0.28f, by0 + bh); path.quadTo(X - bw * 0.44f, by0 + bh, X - bw * 0.45f, by0 + bh * 0.84f)
+        shape(baseC)
+        // A hem, and for knitwear a ribbed band.
+        if (a.outfit in setOf("hoodie", "sweater")) c.rrect(X - bw * 0.43f, by0 + bh * 0.86f, X + bw * 0.43f, by0 + bh, r * 0.08f, shadeC)
+        else if (a.outfit in setOf("tee", "stripes", "polo", "print")) c.line(X - bw * 0.36f, by0 + bh * 0.93f, X + bw * 0.36f, by0 + bh * 0.93f, shadeC, max(1f, lw * 0.7f))
         // The head hides the top fifth of the body, so details start below that.
         val top = by0 + r * 0.22f
         when (a.outfit) {
@@ -318,33 +359,34 @@ object AvatarArt {
         }
 
         // ---------- arms ----------
-        val hand = s * 0.085f
+        val hand = s * 0.08f
+        val longSleeve = a.outfit in setOf("hoodie", "jacket", "sweater", "suit")
+        val sleeveC = darker(baseC, 0.93f)
         fun handAt(x: Float, y: Float) = c.oval(x - hand, y - hand, x + hand, y + hand, sk)
-        val ay = by0 + r * 0.32f
+        /** Shoulder to wrist: a sleeve (long, or short with a bare forearm), then the hand. */
+        fun arm(x0: Float, y0: Float, x1: Float, y1: Float) {
+            if (longSleeve) {
+                c.line(x0, y0, x1, y1, sleeveC, s * 0.125f)
+                c.line(x0 + (x1 - x0) * 0.9f, y0 + (y1 - y0) * 0.9f, x1, y1, darker(baseC, 0.8f), s * 0.125f)
+            } else {
+                c.line(x0, y0, x1, y1, sk, s * 0.095f)
+                c.line(x0, y0, x0 + (x1 - x0) * 0.42f, y0 + (y1 - y0) * 0.42f, sleeveC, s * 0.135f)
+            }
+            handAt(x1 + (x1 - x0) * 0.14f, y1 + (y1 - y0) * 0.14f)
+        }
+        val shx = bw * 0.43f
+        val shy = by0 + bh * 0.22f
+        fun down(sx: Int) = arm(X + sx * shx, shy, X + sx * bw * 0.57f, by0 + bh * 0.6f)
         when (arms) {
-            Arms.WAVE -> {
-                handAt(X - bw / 2 - s * 0.02f, ay)
-                c.line(X + bw / 2 - s * 0.06f, by0 + r * 0.2f, X + bw / 2 + s * 0.26f, by0 - r * 0.25f, sh, s * 0.11f)
-                handAt(X + bw / 2 + s * 0.28f, by0 - r * 0.32f)
-            }
-            Arms.WAVE_L -> {
-                handAt(X + bw / 2 + s * 0.02f, ay)
-                c.line(X - bw / 2 + s * 0.06f, by0 + r * 0.2f, X - bw / 2 - s * 0.26f, by0 - r * 0.25f, sh, s * 0.11f)
-                handAt(X - bw / 2 - s * 0.28f, by0 - r * 0.32f)
-            }
-            Arms.UP -> for (sx in intArrayOf(-1, 1)) {
-                c.line(X + sx * bw * 0.4f, by0 + r * 0.2f, X + sx * r * 1.1f, Y + r * 0.34f, sh, s * 0.11f)
-                handAt(X + sx * r * 1.16f, Y + r * 0.24f)
-            }
-            Arms.HUG -> for (sx in intArrayOf(-1, 1)) {
-                c.line(X + sx * bw * 0.4f, by0 + r * 0.2f, X + sx * (bw / 2 + s * 0.2f), by0 + r * 0.05f, sh, s * 0.11f)
-                handAt(X + sx * (bw / 2 + s * 0.22f), by0 + r * 0.03f)
-            }
+            Arms.WAVE -> { down(-1); arm(X + shx, shy, X + bw / 2 + s * 0.22f, by0 - r * 0.2f) }
+            Arms.WAVE_L -> { down(1); arm(X - shx, shy, X - bw / 2 - s * 0.22f, by0 - r * 0.2f) }
+            Arms.UP -> for (sx in intArrayOf(-1, 1)) arm(X + sx * shx, shy, X + sx * r * 1.06f, Y + r * 0.4f)
+            Arms.HUG -> for (sx in intArrayOf(-1, 1)) arm(X + sx * shx, shy, X + sx * (bw / 2 + s * 0.18f), by0 + r * 0.08f)
             Arms.HEART -> {
-                heart(c, X, by0 + r * 0.22f, s * 0.3f, PINK)
-                handAt(X - s * 0.13f, by0 + r * 0.32f); handAt(X + s * 0.13f, by0 + r * 0.32f)
+                for (sx in intArrayOf(-1, 1)) arm(X + sx * shx, shy, X + sx * s * 0.17f, by0 + r * 0.36f)
+                heart(c, X, by0 + r * 0.24f, s * 0.3f, PINK)
             }
-            Arms.DOWN -> { handAt(X - bw / 2 - s * 0.02f, ay); handAt(X + bw / 2 + s * 0.02f, ay) }
+            Arms.DOWN -> { down(-1); down(1) }
         }
 
         // ---------- head ----------
@@ -354,58 +396,138 @@ object AvatarArt {
         c.oval(X - r, Y - r, X + r, Y + r, sk)
 
         // ---------- hair on top ----------
+        val h2 = darker(hr, 0.92f)
+        val h3 = Color.rgb(Color.red(hr) + (255 - Color.red(hr)) * 7 / 100, Color.green(hr) + (255 - Color.green(hr)) * 7 / 100, Color.blue(hr) + (255 - Color.blue(hr)) * 7 / 100)
+        /** A soft band of light across the crown, plus a thinner bright line inside it. */
+        fun shine() {
+            c.arcLine(X - r * 0.78f, Y - r * 0.98f, X + r * 0.62f, Y - r * 0.02f, 208f, 292f, Color.argb(26, 255, 255, 255), lw * 3.2f)
+            c.arcLine(X - r * 0.74f, Y - r * 0.98f, X + r * 0.56f, Y - r * 0.02f, 222f, 276f, Color.argb(95, 255, 255, 255), lw * 1.1f)
+        }
+        fun dome(grow: Float, low: Float) { c.chord(X - r * grow, Y - r * (grow + 0.04f), X + r * grow, Y + r * low, 180f, 360f, hr); shine() }
+        /** One lock of hair: a tapered leaf from its root to its tip, bulging to one side. */
+        fun lock(x0: Float, y0: Float, x1: Float, y1: Float, w: Float, col: Int) {
+            val mx = (x0 + x1) / 2; val my = (y0 + y1) / 2
+            val len = hypot(x1 - x0, y1 - y0).coerceAtLeast(1f)
+            val nx = -(y1 - y0) / len * w * r; val ny = (x1 - x0) / len * w * r
+            path.reset(); path.moveTo(x0, y0); path.quadTo(mx + nx * 1.7f, my + ny * 1.7f, x1, y1); path.quadTo(mx - nx * 0.7f, my - ny * 0.7f, x0, y0)
+            shape(col)
+        }
+        /** Fine strands combed from the parting towards the hairline. */
+        fun combed(px: Float, py: Float, vararg ends: Float) {
+            var i = 0
+            while (i < ends.size) {
+                val ex1 = X + ends[i] * r; val ey1 = Y + ends[i + 1] * r
+                path.reset(); path.moveTo(px, py); path.quadTo((px + ex1) / 2, py + (ey1 - py) * 0.15f, ex1, ey1)
+                stroke.color = Color.argb(60, Color.red(lo), Color.green(lo), Color.blue(lo)); stroke.strokeWidth = max(1f, lw * 0.5f); c.drawPath(path, stroke)
+                i += 2
+            }
+        }
+        /** Locks swept across the forehead from a side parting, with a wisp at each temple. */
+        fun sweptFringe() {
+            val px = X - r * 0.42f; val py = Y - r * 0.98f
+            combed(px, py, -1.0f, -0.4f, -0.7f, -0.6f, 0.3f, -0.62f, 0.75f, -0.5f, 1.0f, -0.36f)
+            lock(X + r * 0.55f, Y - r * 0.86f, X + r * 1.03f, Y + r * 0.02f, -0.14f, h2)
+            lock(X - r * 0.72f, Y - r * 0.7f, X - r * 1.02f, Y + r * 0.04f, 0.13f, h2)
+            lock(X + r * 0.1f, Y - r * 0.95f, X + r * 0.82f, Y - r * 0.16f, -0.2f, hr)
+            lock(X - r * 0.25f, Y - r * 0.96f, X + r * 0.38f, Y - r * 0.14f, -0.22f, h3)
+            lock(X - r * 0.5f, Y - r * 0.92f, X - r * 0.12f, Y - r * 0.16f, -0.2f, hr)
+            lock(X - r * 0.62f, Y - r * 0.82f, X - r * 0.66f, Y - r * 0.2f, 0.14f, h2)
+        }
+        /** A straight fringe made of separate locks, so the ends are soft and uneven. */
+        fun bluntFringe(drop: Float) {
+            combed(X, Y - r * 1.02f, -0.9f, -0.5f, -0.45f, -0.6f, 0.45f, -0.6f, 0.9f, -0.5f)
+            for (k in 0 until 7) {
+                val x = X - r * 0.84f + k * r * 0.28f
+                val d = drop + (if (k % 2 == 0) 0.05f else 0f) - (if (k == 3) 0.03f else 0f)
+                lock(x, Y - r * 0.86f, x + (k - 3) * r * 0.02f, Y - r * d, if (k % 2 == 0) 0.17f else -0.17f, if (k % 3 == 1) h3 else if (k % 2 == 0) hr else h2)
+            }
+        }
         if (!girl) when (st) {
-            "buzz" -> c.chord(X - r, Y - r * 1.02f, X + r, Y + r * 0.2f, 180f, 360f, hr)
-            "spiky" -> {
-                c.chord(X - r * 1.04f, Y - r * 1.04f, X + r * 1.04f, Y + r * 0.4f, 180f, 360f, hr)
-                for (k in 0 until 5) {
-                    val bx = X - r * 0.92f + k * r * 0.38f
-                    c.poly(hr, bx, Y - r * 0.55f, bx + r * 0.2f, Y - r * 1.38f + (k % 2) * r * 0.16f, bx + r * 0.42f, Y - r * 0.6f)
+            "buzz" -> {
+                c.chord(X - r, Y - r * 1.02f, X + r, Y + r * 0.2f, 180f, 360f, hr)
+                c.arcLine(X - r * 0.9f, Y - r * 0.92f, X + r * 0.9f, Y + r * 0.34f, 205f, 335f, lo, max(1f, lw * 0.6f))
+            }
+            "spiky" -> { // tufts standing up from the crown, with a short jagged fringe
+                dome(1.04f, 0.4f)
+                for (k in 0 until 6) {
+                    val x0 = X - r * 0.8f + k * r * 0.32f
+                    lock(x0, Y - r * 0.62f, X - r * 0.98f + k * r * 0.4f, Y - r * (1.42f - (k % 2) * 0.14f), if (k < 3) 0.17f else -0.17f, if (k % 2 == 0) hr else h2)
                 }
-                c.poly(hr, X - r * 0.7f, Y - r * 0.6f, X - r * 0.35f, Y - r * 0.18f, X - r * 0.1f, Y - r * 0.6f)
+                for (k in 0 until 4) {
+                    val x0 = X - r * 0.7f + k * r * 0.46f
+                    lock(x0, Y - r * 0.74f, x0 + r * 0.08f, Y - r * (0.12f + (k % 2) * 0.08f), 0.16f, if (k % 2 == 0) hr else h3)
+                }
             }
             "curly" -> {
-                for (deg in 190 until 360 step 22) {
+                for (deg in 185 until 360 step 17) {
                     val t = Math.toRadians(deg.toDouble())
-                    val px = X + r * 0.82f * cos(t).toFloat(); val py = Y + r * 0.82f * sin(t).toFloat()
-                    c.oval(px - r * 0.32f, py - r * 0.32f, px + r * 0.32f, py + r * 0.32f, hr)
+                    val px = X + r * 0.86f * cos(t).toFloat(); val py = Y - r * 0.02f + r * 0.86f * sin(t).toFloat()
+                    c.oval(px - r * 0.27f, py - r * 0.27f, px + r * 0.27f, py + r * 0.27f, hr)
                 }
-                c.oval(X - r * 0.5f, Y - r * 1.08f, X + r * 0.5f, Y - r * 0.4f, hr)
+                c.oval(X - r * 0.6f, Y - r * 1.12f, X + r * 0.6f, Y - r * 0.38f, hr)
+                for (deg in 200 until 350 step 34) {
+                    val t = Math.toRadians(deg.toDouble())
+                    val px = X + r * 0.9f * cos(t).toFloat(); val py = Y - r * 0.06f + r * 0.9f * sin(t).toFloat()
+                    c.arcLine(px - r * 0.14f, py - r * 0.14f, px + r * 0.14f, py + r * 0.14f, 180f, 300f, hi, max(1f, lw * 0.7f))
+                }
             }
             "swoop" -> {
-                c.chord(X - r * 1.04f, Y - r * 1.06f, X + r * 1.04f, Y + r * 0.45f, 180f, 360f, hr)
-                c.chord(X - r * 1.15f, Y - r * 1.25f, X + r * 0.6f, Y + r * 0.1f, 270f, 360f, hr, pie = true)
-                c.poly(hr, X - r * 0.9f, Y - r * 0.4f, X + r * 0.55f, Y - r * 0.85f, X + r * 0.2f, Y - r * 0.25f)
+                dome(1.05f, 0.42f)
+                path.reset(); path.moveTo(X - r * 1.0f, Y - r * 0.32f)
+                path.cubicTo(X - r * 0.95f, Y - r * 1.5f, X + r * 0.55f, Y - r * 1.55f, X + r * 1.02f, Y - r * 0.5f)
+                path.cubicTo(X + r * 0.5f, Y - r * 0.86f, X - r * 0.25f, Y - r * 0.7f, X - r * 1.0f, Y - r * 0.32f)
+                shape(hr)
+                c.arcLine(X - r * 0.6f, Y - r * 1.12f, X + r * 0.7f, Y - r * 0.1f, 220f, 295f, hi, lw * 1.5f)
+                c.arcLine(X - r * 0.5f, Y - r * 1.1f, X + r * 0.9f, Y - r * 0.1f, 225f, 295f, lo, max(1f, lw * 0.6f))
             }
             "manbun" -> {
-                c.oval(X - r * 0.3f, Y - r * 1.4f, X + r * 0.3f, Y - r * 0.85f, hr)
-                c.chord(X - r * 1.04f, Y - r * 1.06f, X + r * 1.04f, Y + r * 0.4f, 180f, 360f, hr)
+                c.oval(X - r * 0.32f, Y - r * 1.44f, X + r * 0.32f, Y - r * 0.86f, hr)
+                c.oval(X - r * 0.16f, Y - r * 1.3f, X + r * 0.02f, Y - r * 1.16f, hi)
+                dome(1.04f, 0.4f)
+                c.arcLine(X - r * 0.9f, Y - r * 0.92f, X + r * 0.9f, Y + r * 0.3f, 205f, 335f, lo, max(1f, lw * 0.6f))
             }
-            else -> {
-                c.chord(X - r * 1.04f, Y - r * 1.08f, X + r * 1.04f, Y + r * 0.55f, 180f, 360f, hr)
-                for (dx in floatArrayOf(-0.55f, -0.15f, 0.3f)) {
-                    c.chord(X + dx * r - r * 0.36f, Y - r * 0.62f, X + dx * r + r * 0.36f, Y + r * 0.05f, 180f, 360f, hr, pie = true)
-                }
-            }
+            else -> { dome(1.06f, 0.5f); sweptFringe() }
         } else {
             if (st == "curly") {
-                for (deg in 190 until 360 step 20) {
+                for (deg in 185 until 360 step 17) {
                     val t = Math.toRadians(deg.toDouble())
-                    val px = X + r * 0.85f * cos(t).toFloat(); val py = Y + r * 0.85f * sin(t).toFloat()
-                    c.oval(px - r * 0.3f, py - r * 0.3f, px + r * 0.3f, py + r * 0.3f, hr)
+                    val px = X + r * 0.88f * cos(t).toFloat(); val py = Y - r * 0.02f + r * 0.88f * sin(t).toFloat()
+                    c.oval(px - r * 0.27f, py - r * 0.27f, px + r * 0.27f, py + r * 0.27f, hr)
                 }
+                c.oval(X - r * 0.6f, Y - r * 1.12f, X + r * 0.6f, Y - r * 0.38f, hr)
             } else {
-                c.chord(X - r * 1.05f, Y - r * 1.08f, X + r * 1.05f, Y + r * 0.45f, 180f, 360f, hr)
-                if (st == "bob") {
-                    c.chord(X - r, Y - r * 0.95f, X + r, Y + r * 0.1f, 180f, 360f, hr)
-                } else {
-                    c.chord(X - r, Y - r * 0.9f, X + r * 0.25f, Y + r * 0.15f, 200f, 360f, hr, pie = true)
-                    c.chord(X - r * 0.2f, Y - r * 0.9f, X + r, Y + r * 0.05f, 180f, 340f, hr, pie = true)
+                dome(1.07f, 0.5f)
+                when (st) {
+                    "long" -> { // curtain fringe from a centre parting, and a lock over each shoulder
+                        combed(X, Y - r * 1.04f, -1.0f, -0.3f, -0.6f, -0.55f, 0.6f, -0.55f, 1.0f, -0.3f)
+                        for (sx in intArrayOf(-1, 1)) {
+                            path.reset(); path.moveTo(X + sx * r * 0.84f, Y - r * 0.5f)
+                            path.cubicTo(X + sx * r * 0.8f, Y + r * 0.6f, X + sx * r * 0.96f, Y + r * 1.0f, X + sx * r * 0.78f, Y + r * 1.4f)
+                            path.cubicTo(X + sx * r * 1.22f, Y + r * 1.2f, X + sx * r * 1.34f, Y + r * 0.4f, X + sx * r * 1.09f, Y - r * 0.5f)
+                            shape(hr)
+                            lock(X, Y - r * 0.9f, X + sx * r * 0.97f, Y + r * 0.1f, -sx * 0.12f, hr)
+                            lock(X + sx * r * 0.02f, Y - r * 0.92f, X + sx * r * 0.84f, Y - r * 0.1f, -sx * 0.17f, h3)
+                            lock(X + sx * r * 0.04f, Y - r * 0.94f, X + sx * r * 0.5f, Y - r * 0.3f, -sx * 0.16f, h2)
+                        }
+                    }
+                    "bob" -> {
+                        bluntFringe(0.14f)
+                        for (sx in intArrayOf(-1, 1)) {
+                            path.reset(); path.moveTo(X + sx * r * 0.84f, Y - r * 0.3f)
+                            path.cubicTo(X + sx * r * 0.82f, Y + r * 0.3f, X + sx * r * 0.86f, Y + r * 0.6f, X + sx * r * 0.62f, Y + r * 0.84f)
+                            path.cubicTo(X + sx * r * 1.1f, Y + r * 0.92f, X + sx * r * 1.3f, Y + r * 0.4f, X + sx * r * 1.1f, Y - r * 0.3f)
+                            shape(hr)
+                        }
+                    }
+                    "pigtails" -> { bluntFringe(0.2f); c.line(X, Y - r * 0.6f, X, Y - r * 1.05f, lo, max(1f, lw * 0.6f)) }
+                    else -> sweptFringe() // bun, ponytail
                 }
             }
-            if (st == "bun") c.oval(X - r * 0.34f, Y - r * 1.48f, X + r * 0.34f, Y - r * 0.86f, hr)
+            if (st == "bun") {
+                c.oval(X - r * 0.36f, Y - r * 1.52f, X + r * 0.36f, Y - r * 0.88f, hr)
+                c.oval(X - r * 0.18f, Y - r * 1.38f, X + r * 0.02f, Y - r * 1.22f, hi)
+            }
         }
-        c.arcLine(X - r * 0.7f, Y - r, X + r * 0.2f, Y - r * 0.2f, 210f, 250f, Color.argb(70, 255, 255, 255), lw)
 
         // ---------- face ----------
         val ey = Y + r * 0.12f
@@ -511,28 +633,41 @@ object AvatarArt {
         }
         if ("glasses" in acc) {
             for (sx in intArrayOf(-1, 1)) {
-                stroke.color = dark; stroke.strokeWidth = lw
-                rf.set(X + sx * ex - er * 2.3f, ey - er * 2.1f, X + sx * ex + er * 2.3f, ey + er * 2.1f); c.drawOval(rf, stroke)
+                c.rrect(X + sx * ex - er * 2.3f, ey - er * 1.9f, X + sx * ex + er * 2.3f, ey + er * 2.0f, er * 1.3f, Color.argb(36, 255, 255, 255))
+                stroke.color = dark; stroke.strokeWidth = lw * 1.1f
+                rf.set(X + sx * ex - er * 2.3f, ey - er * 1.9f, X + sx * ex + er * 2.3f, ey + er * 2.0f); c.drawRoundRect(rf, er * 1.3f, er * 1.3f, stroke)
+                c.line(X + sx * ex - er * 1.5f, ey - er * 1.2f, X + sx * ex - er * 0.9f, ey - er * 1.45f, Color.argb(150, 255, 255, 255), max(1f, lw * 0.7f))
             }
-            c.line(X - ex + er * 2.3f, ey, X + ex - er * 2.3f, ey, dark, lw)
+            c.arcLine(X - ex + er * 2.3f, ey - er * 0.9f, X + ex - er * 2.3f, ey + er * 0.5f, 200f, 340f, dark, lw * 1.1f)
         }
         if ("shades" in acc) {
-            val g = rgb(24, 24, 30)
+            val g = rgb(28, 28, 36)
             for (sx in intArrayOf(-1, 1)) {
-                c.rrect(X + sx * ex - er * 2.4f, ey - er * 1.6f, X + sx * ex + er * 2.4f, ey + er * 1.7f, er * 0.9f, g)
-                c.line(X + sx * ex - er * 1.4f, ey - er * 0.8f, X + sx * ex - er * 0.4f, ey - er * 1.1f, rgb(110, 110, 130), lw)
+                c.rrect(X + sx * ex - er * 2.4f, ey - er * 1.6f, X + sx * ex + er * 2.4f, ey + er * 1.8f, er * 1.1f, g)
+                c.line(X + sx * ex - er * 1.5f, ey - er * 0.7f, X + sx * ex - er * 0.5f, ey - er * 1.1f, rgb(120, 120, 150), lw)
             }
-            c.line(X - ex + er * 2.4f, ey - er * 0.6f, X + ex - er * 2.4f, ey - er * 0.6f, g, lw)
+            c.line(X - ex + er * 2.4f, ey - er * 0.6f, X + ex - er * 2.4f, ey - er * 0.6f, g, lw * 1.2f)
         }
         if ("cap" in acc) {
-            c.chord(X - r * 1.05f, Y - r * 1.12f, X + r * 1.05f, Y + r * 0.2f, 180f, 360f, rgb(84, 140, 232))
-            c.rrect(X - r * 0.1f, Y - r * 0.48f, X + r * 1.3f, Y - r * 0.28f, r * 0.08f, rgb(60, 112, 200))
-            c.oval(X - r * 0.08f, Y - r * 1.16f, X + r * 0.08f, Y - r * 1.02f, rgb(60, 112, 200))
+            val cc = rgb(84, 140, 232); val cd = rgb(58, 108, 196)
+            c.chord(X - r * 1.06f, Y - r * 1.16f, X + r * 1.06f, Y + r * 0.24f, 180f, 360f, cc)
+            c.arcLine(X - r * 0.5f, Y - r * 1.16f, X + r * 0.5f, Y + r * 0.24f, 200f, 340f, cd, max(1f, lw * 0.6f))
+            // a curved peak, seen from slightly above
+            path.reset(); path.moveTo(X - r * 0.35f, Y - r * 0.47f)
+            path.quadTo(X + r * 0.6f, Y - r * 0.62f, X + r * 1.42f, Y - r * 0.3f)
+            path.quadTo(X + r * 0.7f, Y - r * 0.2f, X - r * 0.35f, Y - r * 0.3f)
+            shape(cd)
+            c.rrect(X - r * 1.06f, Y - r * 0.54f, X + r * 1.06f, Y - r * 0.4f, r * 0.06f, cd)
+            c.oval(X - r * 0.09f, Y - r * 1.2f, X + r * 0.09f, Y - r * 1.06f, cd)
         }
         if ("beanie" in acc) {
-            c.chord(X - r * 1.06f, Y - r * 1.2f, X + r * 1.06f, Y + r * 0.1f, 180f, 360f, rgb(232, 96, 86))
-            c.rrect(X - r * 1.08f, Y - r * 0.5f, X + r * 1.08f, Y - r * 0.25f, r * 0.1f, rgb(196, 72, 66))
-            c.oval(X - r * 0.22f, Y - r * 1.42f, X + r * 0.22f, Y - r, rgb(250, 240, 230))
+            val bc = rgb(232, 96, 86); val bd = rgb(196, 72, 66)
+            c.chord(X - r * 1.07f, Y - r * 1.22f, X + r * 1.07f, Y + r * 0.12f, 180f, 360f, bc)
+            for (k in -2..2) c.line(X + k * r * 0.3f, Y - r * (1.1f - abs(k) * 0.12f), X + k * r * 0.36f, Y - r * 0.6f, bd, max(1f, lw * 0.6f))
+            c.rrect(X - r * 1.1f, Y - r * 0.56f, X + r * 1.1f, Y - r * 0.26f, r * 0.14f, bd)
+            for (k in -4..4) c.line(X + k * r * 0.23f, Y - r * 0.5f, X + k * r * 0.23f, Y - r * 0.32f, bc, max(1f, lw * 0.6f))
+            c.oval(X - r * 0.22f, Y - r * 1.44f, X + r * 0.22f, Y - r * 1.0f, rgb(250, 240, 230))
+            c.oval(X - r * 0.12f, Y - r * 1.38f, X + r * 0.02f, Y - r * 1.24f, WHITE)
         }
         if ("bandana" in acc) {
             val b = rgb(230, 70, 80)
@@ -544,7 +679,8 @@ object AvatarArt {
             c.poly(rgb(255, 160, 180), X + sx * r * 0.75f, Y - r * 0.7f, X + sx * r * 0.72f, Y - r * 1.16f, X + sx * r * 0.4f, Y - r * 0.92f)
         }
         if ("headphones" in acc) for (sx in intArrayOf(-1, 1)) {
-            c.rrect(X + sx * r * 1.02f - r * 0.2f, Y - r * 0.2f, X + sx * r * 1.02f + r * 0.2f, Y + r * 0.42f, r * 0.14f, rgb(255, 106, 61))
+            c.rrect(X + sx * r * 1.03f - r * 0.21f, Y - r * 0.24f, X + sx * r * 1.03f + r * 0.21f, Y + r * 0.44f, r * 0.16f, rgb(52, 52, 60))
+            c.rrect(X + sx * r * 1.07f - r * 0.12f, Y - r * 0.14f, X + sx * r * 1.07f + r * 0.12f, Y + r * 0.34f, r * 0.1f, rgb(255, 122, 80))
         }
         if ("bow" in acc) {
             val bx = X + r * 0.62f; val byy = Y - r * 0.8f

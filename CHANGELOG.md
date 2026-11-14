@@ -3,6 +3,20 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.22.0] - 2026-11-14
+
+### Changed
+- Avatars have a new look everywhere (faces unchanged): hair is built from separate locks with
+  proper fringes, partings and a soft highlight; bodies have shoulders, sleeved arms and little
+  shoes; clothes have hems and cuffs; the cap, beanie, glasses and headphones are redrawn.
+  Nothing about saved avatars changes, so yours just looks better after the update.
+
+### Fixed (backend, needs a deploy)
+- A hug, kiss etc. that Firebase answers with a passing "internal error" is tried once more
+  instead of being dropped (one kiss in the logs reached 0 of 1 this way).
+- Making a code again while nobody has joined the last one reuses that group instead of
+  creating another empty one.
+
 ## [1.21.0] - 2026-11-14
 
 ### Added
