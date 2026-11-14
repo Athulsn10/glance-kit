@@ -306,8 +306,13 @@ object PeoplePage {
             if (gd.others.isEmpty() || (circle == Circle.FAMILY && gd.others.size + 1 < circle.max)) {
                 pills.add(Ui.pill(c, "Invite", false) { invite(a, scope, circle, g.id, refresh) })
             }
-            if (!isWidget && PeopleRepo.cached(c).size > 1) pills.add(Ui.pill(c, "Show on widget", false) {
+            val all = PeopleRepo.cached(c)
+            if (!isWidget && all.size > 1) pills.add(Ui.pill(c, "On widget", false) {
                 PeopleRepo.setWidgetGroup(c, g.id); PeopleViews.update(c); refresh()
+            })
+            // The order here is the order the widget's title steps through.
+            if (all.indexOfFirst { it.group.id == g.id } > 0) pills.add(Ui.pill(c, "Move up", false) {
+                PeopleRepo.moveUp(c, g.id); PeopleViews.update(c); refresh()
             })
             pills.add(Ui.pill(c, "Leave", false) {
                 AlertDialog.Builder(a)
@@ -331,7 +336,10 @@ object PeoplePage {
                     }
                     .setNegativeButton("Cancel", null).show()
             })
-            pills.forEachIndexed { i, p -> row2.addView(p, LinearLayout.LayoutParams(0, Ui.dp(c, 44), 1f).apply { if (i > 0) marginStart = Ui.dp(c, 8) }) }
+            pills.forEachIndexed { i, p ->
+                p.setPadding(Ui.dp(c, 6), 0, Ui.dp(c, 6), 0) // up to four share the row
+                row2.addView(p, LinearLayout.LayoutParams(0, Ui.dp(c, 44), 1f).apply { if (i > 0) marginStart = Ui.dp(c, 8) })
+            }
             addView(row2)
         }
     }
@@ -524,7 +532,7 @@ class AvatarEditorActivity : Activity() {
         body.addView(swatches(c, AvatarArt.SKINS, av.skin) { set(av.copy(skin = it)) }, Ui.params(c, 8))
 
         body.addView(Ui.label(c, "OUTFIT"), Ui.params(c, 20))
-        body.addView(PeoplePage.chips(c, AvatarArt.OUTFIT_STYLES.map { it.replaceFirstChar(Char::uppercase) }, AvatarArt.OUTFIT_STYLES.indexOf(av.outfit)) { i -> set(av.copy(outfit = AvatarArt.OUTFIT_STYLES[i])) }, Ui.params(c, 8))
+        body.addView(PeoplePage.chips(c, AvatarArt.OUTFIT_STYLES.map { AvatarArt.OUTFIT_LABELS[it] ?: it }, AvatarArt.OUTFIT_STYLES.indexOf(av.outfit)) { i -> set(av.copy(outfit = AvatarArt.OUTFIT_STYLES[i])) }, Ui.params(c, 8))
         body.addView(swatches(c, AvatarArt.OUTFITS, av.color) { set(av.copy(color = it)) }, Ui.params(c, 10))
 
         body.addView(Ui.label(c, "EXTRAS · ONE PER SPOT"), Ui.params(c, 20))

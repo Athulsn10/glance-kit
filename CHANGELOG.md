@@ -3,33 +3,24 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
-## [Unreleased]
+## [1.21.0] - 2026-11-14
 
 ### Added
-- Every action now plays a full-screen moment in the app, when you send one and when one
-  arrives: the avatars run in for a hug, lean in for a kiss on the cheek, jump for a high five,
-  poke, send a paper plane, walk up to a glowing house and more, with hearts, confetti or a
-  little screen shake around them. Tap to skip. It's skipped if your phone has animations off.
-- "Returned": send back the same thing within 30 minutes and both phones get a bigger version,
-  and the widget says e.g. HUG RETURNED. This is worked out on your phone; nothing new is shared.
-- Partners can send everything: Love you, High five, Poke, Hang out?, Call me and Home safe
-  join Hug, Miss you and Kiss. Friends and Family are unchanged. Needs the backend deployed
-  first, and both phones updated.
-- Tap an avatar on the People tab and it hops and laughs. Avatars blink.
-- The widget shows what arrived: its own symbol and pose for a hug, kiss, poke and the rest.
-
-### Changed
-- Each action button has its own colour (it used to look like only the first one did something).
-- Avatar extras are one per spot: one thing on the eyes, one on the head, one hair clip, and
-  earrings. Picking a second hat swaps it for the first. Avatars saved with a pile of extras
-  are trimmed the same way on every phone.
+- People widget: with more than one group, tap the title (it shows a ›) to step to the next one.
+  "Move up" on a group in the People tab sets the order.
+- More for your avatar: six new outfits (sweater, polo, heart tee, overalls, suit, dress), four
+  more outfit colours, two more hair colours, and a crown and a scarf. People on an older
+  version see a plain tee until they update.
 
 ### Fixed
-- An action that arrives while Glance Kit is open now always buzzes your phone (unless it's on
-  silent or Do Not Disturb), instead of relying on the notification to do it. Actions added in
-  an update get their own buzz pattern without a reinstall.
-- People widget: the heart (or plane) between you no longer jumps between three positions and
-  stops half way. It now glides the whole way across, and the avatars bob smoothly.
+- People widget: the heart no longer jumps back to the start or sits still on the line. The
+  widget used to be redrawn from scratch every time any Glance Kit widget refreshed (every
+  minute while charging), which restarted its animation each time. Now only the words change
+  unless the picture really did.
+
+### Note
+- The new partner actions from 1.20.9 (Love you, High five, Poke, Hang out?, Call me, Home
+  safe) only work once the backend is deployed; until then they say "Unknown action".
 
 ## [1.20.9] - 2026-11-14
 

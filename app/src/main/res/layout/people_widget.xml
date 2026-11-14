@@ -15,7 +15,9 @@
     android:paddingEnd="16dp"
     android:paddingBottom="12dp">
 
+    <!-- Tap: next group (when there's more than one), otherwise open the app. -->
     <LinearLayout
+        android:id="@+id/people_head"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal">

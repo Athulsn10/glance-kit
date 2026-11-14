@@ -353,7 +353,37 @@ object PeopleRepo {
 
     data class GroupData(val group: Group, val others: List<Person>)
 
+    private const val K_ORDER = "people_group_order"
+
+    private fun order(c: Context): List<String> =
+        (Store.prefs(c).getString(K_ORDER, "") ?: "").split(',').filter { it.isNotEmpty() }
+
+    /** Your groups, in the order you put them in (new ones go last). */
     fun cached(c: Context): List<GroupData> {
+        val order = order(c)
+        val all = cachedRaw(c)
+        if (order.isEmpty()) return all
+        return all.sortedBy { val i = order.indexOf(it.group.id); if (i < 0) Int.MAX_VALUE else i }
+    }
+
+    /** Move a group one place up the list (the People tab and the widget's "next" follow it). */
+    fun moveUp(c: Context, id: String) {
+        val ids = cached(c).map { it.group.id }.toMutableList()
+        val i = ids.indexOf(id)
+        if (i <= 0) return
+        ids[i] = ids[i - 1]; ids[i - 1] = id
+        Store.prefs(c).edit().putString(K_ORDER, ids.joinToString(",")).apply()
+    }
+
+    /** Show the next group on the widget (wraps round). */
+    fun nextWidgetGroup(c: Context) {
+        val ids = cached(c).map { it.group.id }
+        if (ids.size < 2) return
+        val shown = widgetData(c)?.group?.id
+        setWidgetGroup(c, ids[(ids.indexOf(shown) + 1) % ids.size])
+    }
+
+    private fun cachedRaw(c: Context): List<GroupData> {
         val raw = Store.prefs(c).getString(K_GROUPS, null) ?: return emptyList()
         return runCatching {
             val arr = JSONArray(raw)

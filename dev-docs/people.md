@@ -14,6 +14,9 @@ their own vibration pattern.
 - Avatars (`AvatarArt.kt`): gender, skin, hair, style, outfit, colour, extras; 16 presets;
   12 moods; arm poses. Drawn on a Canvas. Extras are one per spot (`EXTRA_SLOTS`: eyes, head,
   clip, ears); `Avatar.sane()` trims anything else, so old or remote avatars can't stack hats.
+  Add outfits, colours and extras at the END of their lists: values an older app doesn't know
+  fall back (plain tee, last colour, extra dropped). Don't add avatar fields without changing
+  `firestore.rules` (`avatar.size() <= 8`).
 - Each `PeopleAction` has a `color`, used for its button and its full-screen moment.
 
 ## Repository (`PeopleRepo.kt`)
@@ -29,6 +32,10 @@ their own vibration pattern.
   the phone and only `atHome` is shared.
 
 ## Widget and background (`PeopleWidget.kt`)
+- The widget shows one group. Tapping its title (`ACTION_NEXT`) steps through
+  `PeopleRepo.cached()`, whose order is set with "Move up" in the app (`PeopleRepo.moveUp`,
+  kept in prefs). `PeopleViews.update` redraws pictures only when they changed (see
+  dev-docs/widgets.md, Animation).
 - `PeopleWidget` (provider), `PeopleViews` (builds RemoteViews, fallback on error).
 - `PeopleSync`: periodic worker (15/30/60 min, user choice) — refresh, locate, push profile,
   redraw. `now()` for a one-off.

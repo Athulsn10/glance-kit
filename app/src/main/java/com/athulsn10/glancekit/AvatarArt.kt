@@ -86,18 +86,26 @@ object AvatarArt {
     val HAIRS = intArrayOf(
         rgb(38, 30, 30), rgb(96, 60, 38), rgb(178, 112, 58), rgb(236, 204, 132), rgb(214, 84, 70), rgb(70, 74, 96),
         rgb(240, 160, 200), rgb(120, 200, 230), rgb(180, 150, 250),
+        rgb(206, 206, 214), rgb(120, 200, 140),
     )
     val OUTFITS = intArrayOf(
         rgb(255, 122, 150), rgb(104, 164, 255), rgb(255, 196, 90), rgb(120, 206, 156), rgb(186, 146, 255), rgb(246, 246, 246),
         rgb(40, 40, 48), rgb(255, 140, 90),
+        rgb(64, 190, 190), rgb(52, 72, 128), rgb(150, 52, 70), rgb(132, 150, 84),
     )
     val BOY_STYLES = listOf("short", "spiky", "curly", "swoop", "buzz", "manbun")
     val GIRL_STYLES = listOf("long", "bob", "bun", "ponytail", "pigtails", "curly")
-    val OUTFIT_STYLES = listOf("tee", "hoodie", "jacket", "stripes")
-    val EXTRAS = listOf("glasses", "shades", "cap", "beanie", "headphones", "bandana", "bow", "flower", "catears", "earrings")
+    // New looks go at the end: an older app that doesn't know one shows a plain tee instead.
+    val OUTFIT_STYLES = listOf("tee", "hoodie", "jacket", "stripes", "sweater", "polo", "print", "overalls", "suit", "dress")
+    val OUTFIT_LABELS = mapOf(
+        "tee" to "Tee", "hoodie" to "Hoodie", "jacket" to "Jacket", "stripes" to "Stripes", "sweater" to "Sweater",
+        "polo" to "Polo", "print" to "Heart tee", "overalls" to "Overalls", "suit" to "Suit", "dress" to "Dress",
+    )
+    val EXTRAS = listOf("glasses", "shades", "cap", "beanie", "headphones", "bandana", "bow", "flower", "catears", "earrings", "crown", "scarf")
     val EXTRA_LABELS = mapOf(
         "glasses" to "Glasses", "shades" to "Shades", "cap" to "Cap", "beanie" to "Beanie", "headphones" to "Headphones",
         "bandana" to "Bandana", "bow" to "Bow", "flower" to "Flower", "catears" to "Cat ears", "earrings" to "Earrings",
+        "crown" to "Crown", "scarf" to "Scarf",
     )
 
     /**
@@ -109,6 +117,7 @@ object AvatarArt {
         "cap" to "head", "beanie" to "head", "bandana" to "head", "catears" to "head", "headphones" to "head",
         "bow" to "clip", "flower" to "clip",
         "earrings" to "ears",
+        "crown" to "head", "scarf" to "neck",
     )
 
     /** Keep known extras only, one per spot (the first in [EXTRAS] order wins). */
@@ -247,8 +256,48 @@ object AvatarArt {
         val bh = s * 0.52f
         val by0 = Y + r * 0.78f
         if (a.outfit == "hoodie") c.oval(X - bw * 0.55f, by0 - r * 0.12f, X + bw * 0.55f, by0 + r * 0.42f, darker(sh))
-        c.rrect(X - bw / 2, by0, X + bw / 2, by0 + bh, bw * 0.42f, sh)
+        // Overalls show a light shirt underneath; everything else is the outfit colour.
+        c.rrect(X - bw / 2, by0, X + bw / 2, by0 + bh, bw * 0.42f, if (a.outfit == "overalls") rgb(244, 238, 228) else sh)
+        // The head hides the top fifth of the body, so details start below that.
+        val top = by0 + r * 0.22f
         when (a.outfit) {
+            "sweater" -> {
+                c.rrect(X - bw * 0.24f, top - r * 0.04f, X + bw * 0.24f, top + r * 0.1f, r * 0.06f, darker(sh, 0.85f))
+                val yy = by0 + bh * 0.56f
+                c.line(X - bw / 2 + r * 0.07f, yy - r * 0.11f, X + bw / 2 - r * 0.07f, yy - r * 0.11f, WHITE, max(1f, lw * 0.6f))
+                for (k in -2..2) c.oval(X + k * bw * 0.17f - r * 0.045f, yy - r * 0.045f, X + k * bw * 0.17f + r * 0.045f, yy + r * 0.045f, WHITE)
+                c.line(X - bw / 2 + r * 0.07f, yy + r * 0.11f, X + bw / 2 - r * 0.07f, yy + r * 0.11f, WHITE, max(1f, lw * 0.6f))
+            }
+            "polo" -> {
+                c.poly(WHITE, X - r * 0.34f, top - r * 0.06f, X - r * 0.02f, top - r * 0.06f, X - r * 0.14f, top + r * 0.2f)
+                c.poly(WHITE, X + r * 0.34f, top - r * 0.06f, X + r * 0.02f, top - r * 0.06f, X + r * 0.14f, top + r * 0.2f)
+                c.line(X, top + r * 0.02f, X, by0 + bh * 0.6f, darker(sh, 0.78f), max(1f, lw * 0.6f))
+                for (k in 0 until 2) c.oval(X - r * 0.035f, top + r * (0.16f + k * 0.16f), X + r * 0.035f, top + r * (0.23f + k * 0.16f), WHITE)
+            }
+            "print" -> heart(c, X, by0 + bh * 0.58f, bw * 0.42f, if (a.color == 5) PINK else WHITE)
+            "overalls" -> {
+                c.rrect(X - bw * 0.36f, by0 + bh * 0.42f, X + bw * 0.36f, by0 + bh, bw * 0.24f, sh)
+                c.rrect(X - bw * 0.3f, by0 + bh * 0.42f, X + bw * 0.3f, by0 + bh * 0.7f, r * 0.05f, sh)
+                for (sx in intArrayOf(-1, 1)) {
+                    c.line(X + sx * bw * 0.22f, top - r * 0.04f, X + sx * bw * 0.22f, by0 + bh * 0.46f, sh, r * 0.1f)
+                    c.oval(X + sx * bw * 0.22f - r * 0.05f, by0 + bh * 0.44f, X + sx * bw * 0.22f + r * 0.05f, by0 + bh * 0.44f + r * 0.1f, rgb(255, 214, 102))
+                }
+            }
+            "suit" -> {
+                val dk = darker(sh, 0.78f)
+                c.poly(WHITE, X - r * 0.24f, top - r * 0.08f, X + r * 0.24f, top - r * 0.08f, X, by0 + bh * 0.72f)
+                c.poly(rgb(226, 74, 84), X - r * 0.07f, top, X + r * 0.07f, top, X + r * 0.06f, by0 + bh * 0.56f, X, by0 + bh * 0.66f, X - r * 0.06f, by0 + bh * 0.56f)
+                for (sx in intArrayOf(-1, 1)) {
+                    c.poly(dk, X + sx * r * 0.36f, top - r * 0.08f, X + sx * r * 0.22f, top - r * 0.08f, X + sx * r * 0.02f, by0 + bh * 0.72f, X + sx * r * 0.2f, by0 + bh * 0.5f)
+                }
+            }
+            "dress" -> {
+                val dk = darker(sh, 0.85f)
+                c.poly(sh, X - bw * 0.4f, by0 + bh * 0.42f, X + bw * 0.4f, by0 + bh * 0.42f, X + bw * 0.62f, by0 + bh, X - bw * 0.62f, by0 + bh)
+                c.rrect(X - bw * 0.62f, by0 + bh - r * 0.1f, X + bw * 0.62f, by0 + bh + r * 0.02f, r * 0.05f, dk)
+                c.rrect(X - bw * 0.46f, by0 + bh * 0.4f, X + bw * 0.46f, by0 + bh * 0.52f, r * 0.05f, dk)
+                for (sx in intArrayOf(-1, 1)) c.oval(X + sx * r * 0.15f - r * 0.13f, top - r * 0.08f, X + sx * r * 0.15f + r * 0.13f, top + r * 0.12f, WHITE)
+            }
             "hoodie" -> {
                 for (sx in intArrayOf(-1, 1)) {
                     c.line(X + sx * r * 0.12f, by0 + r * 0.08f, X + sx * r * 0.14f, by0 + r * 0.42f, WHITE, lw)
@@ -447,6 +496,19 @@ object AvatarArt {
 
         // ---------- accessories ----------
         val dark = rgb(40, 40, 40)
+        if ("scarf" in acc) {
+            val sc = rgb(226, 74, 84)
+            c.rrect(X - r * 0.62f, Y + r * 0.8f, X + r * 0.62f, Y + r * 1.06f, r * 0.12f, sc)
+            c.rrect(X + r * 0.18f, Y + r * 0.95f, X + r * 0.44f, Y + r * 1.5f, r * 0.08f, sc)
+            for (k in 0 until 2) c.line(X + r * 0.2f, Y + r * (1.24f + k * 0.12f), X + r * 0.42f, Y + r * (1.24f + k * 0.12f), WHITE, max(1f, lw * 0.6f))
+        }
+        if ("crown" in acc) {
+            val gold = rgb(255, 204, 72)
+            c.poly(gold, X - r * 0.5f, Y - r * 0.82f, X - r * 0.56f, Y - r * 1.3f, X - r * 0.26f, Y - r * 1.04f, X, Y - r * 1.4f,
+                X + r * 0.26f, Y - r * 1.04f, X + r * 0.56f, Y - r * 1.3f, X + r * 0.5f, Y - r * 0.82f)
+            c.rrect(X - r * 0.52f, Y - r * 0.92f, X + r * 0.52f, Y - r * 0.76f, r * 0.05f, rgb(236, 170, 50))
+            c.oval(X - r * 0.07f, Y - r * 0.92f, X + r * 0.07f, Y - r * 0.78f, rgb(226, 74, 84))
+        }
         if ("glasses" in acc) {
             for (sx in intArrayOf(-1, 1)) {
                 stroke.color = dark; stroke.strokeWidth = lw

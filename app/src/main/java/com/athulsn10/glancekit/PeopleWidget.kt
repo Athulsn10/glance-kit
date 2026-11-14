@@ -44,16 +44,21 @@ class GlanceApp : Application() {
     }
 }
 
-/** The People widget. One group per phone is shown; pick which one in the app. */
+/** The People widget. Shows one group; tap its title for the next one, or pick and order them in the app. */
 class PeopleWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        inBackground { PeopleViews.update(context) }
+        // The system asks after a restart, an app update or a new widget: draw it all.
+        inBackground { PeopleViews.update(context, force = true) }
         PeopleSync.schedule(context)
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
-        inBackground { PeopleViews.update(context) }
+        inBackground { PeopleViews.update(context, force = true) }
+    }
+
+    override fun onDeleted(context: Context, ids: IntArray) {
+        PeopleViews.forget(context, ids)
     }
 
     override fun onDisabled(context: Context) {
@@ -62,6 +67,11 @@ class PeopleWidget : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
+        if (intent.action == ACTION_NEXT) {
+            // The title was tapped: show the next group.
+            inBackground { PeopleRepo.nextWidgetGroup(context); PeopleViews.update(context) }
+            return
+        }
         if (intent.action != ACTION_SEND) return
         val gid = intent.getStringExtra(EXTRA_GROUP) ?: return
         val action = intent.getStringExtra(EXTRA_ACTION) ?: return
@@ -73,6 +83,7 @@ class PeopleWidget : AppWidgetProvider() {
 
     companion object {
         const val ACTION_SEND = "com.athulsn10.glancekit.PEOPLE_SEND"
+        const val ACTION_NEXT = "com.athulsn10.glancekit.PEOPLE_NEXT"
         const val EXTRA_GROUP = "group"
         const val EXTRA_ACTION = "action"
     }
@@ -83,18 +94,50 @@ object PeopleViews {
     fun ids(c: Context): IntArray =
         AppWidgetManager.getInstance(c).getAppWidgetIds(ComponentName(c, PeopleWidget::class.java))
 
-    fun update(c: Context) {
+    private const val FULL_EVERY_MS = 3 * 60 * 60 * 1000L
+    private fun sigKey(id: Int) = "people_sig_$id"
+    private fun sigAtKey(id: Int) = "people_sig_at_$id"
+
+    /** Forget what was last drawn for widgets that were removed. */
+    fun forget(c: Context, ids: IntArray) {
+        val e = Store.prefs(c).edit()
+        for (id in ids) e.remove(sigKey(id)).remove(sigAtKey(id))
+        e.apply()
+    }
+
+    /**
+     * Redraw every People widget. This is called a lot (any widget refresh, each minute while
+     * charging...), and a full redraw restarts the launcher's animation, so unless [force] is
+     * set or the picture really changed, only the words are updated.
+     */
+    @Synchronized
+    fun update(c: Context, force: Boolean = false) {
         val mgr = AppWidgetManager.getInstance(c)
+        val p = Store.prefs(c)
         for (id in ids(c)) {
             val o = mgr.getAppWidgetOptions(id)
-            val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 280).coerceAtLeast(180)
-            val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180).coerceAtLeast(140)
-            runCatching { mgr.updateAppWidget(id, views(c, w.toFloat(), h.toFloat())) }
-                .onFailure { e ->
-                    android.util.Log.w("GlanceKit", "People widget update failed", e)
-                    // Never leave the widget blank or broken: show a plain version with the reason.
-                    runCatching { mgr.updateAppWidget(id, fallback(c, e)) }
+            val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 280).coerceAtLeast(180).toFloat()
+            val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 180).coerceAtLeast(140).toFloat()
+            runCatching {
+                val s = State(c)
+                val sig = signature(c, s, w, h)
+                val now = System.currentTimeMillis()
+                val same = !force && p.getString(sigKey(id), null) == sig && now - p.getLong(sigAtKey(id), 0) in 0 until FULL_EVERY_MS
+                if (same) {
+                    // Words only: text and taps, never bitmaps, so the pictures keep animating.
+                    val rv = RemoteViews(c.packageName, R.layout.people_widget)
+                    words(c, rv, s)
+                    mgr.partiallyUpdateAppWidget(id, rv)
+                } else {
+                    mgr.updateAppWidget(id, views(c, w, h))
+                    p.edit().putString(sigKey(id), sig).putLong(sigAtKey(id), now).apply()
                 }
+            }.onFailure { e ->
+                android.util.Log.w("GlanceKit", "People widget update failed", e)
+                p.edit().remove(sigKey(id)).apply()
+                // Never leave the widget blank or broken: show a plain version with the reason.
+                runCatching { mgr.updateAppWidget(id, fallback(c, e)) }
+            }
         }
     }
 
@@ -113,8 +156,8 @@ object PeopleViews {
         return rv
     }
 
-    fun views(c: Context, wDp: Float, hDp: Float): RemoteViews {
-        val rv = RemoteViews(c.packageName, R.layout.people_widget)
+    /** What the widget shows right now. */
+    private class State(c: Context) {
         val data = PeopleRepo.widgetData(c)
         val me = PeopleRepo.me(c)
         val g = data?.group ?: Group("none", Circle.COUPLE, emptyList(), null, null, 0)
@@ -122,21 +165,38 @@ object PeopleViews {
         val circle = g.circle
         val other = others.firstOrNull()
         val scene = if (data == null) Scene.WAITING else if (circle == Circle.FAMILY) Scene.NEAR else People.scene(g, me, other)
+        val groups = PeopleRepo.cached(c).size
+    }
 
-        rv.setTextViewText(R.id.people_title, if (data == null) "PEOPLE" else circle.title)
-        var status = if (data == null) "" else if (circle == Circle.FAMILY) "${others.size + 1} MEMBERS" else People.status(circle, scene, g)
-        // They answered what you sent with the same thing: say so.
-        val last = circle.action(g.lastAction)
-        if (scene == Scene.RECEIVED && last != null && g.lastFrom != null && PeopleHistory.returned(c, g.id, g.lastFrom, last.key, g.lastAt)) {
-            status = last.label.uppercase() + " RETURNED"
-        }
-        rv.setTextViewText(R.id.people_status, status)
-        rv.setTextColor(R.id.people_status, if (scene == Scene.TOGETHER || scene == Scene.RECEIVED) circle.accent else 0xFF969696.toInt())
+    fun views(c: Context, wDp: Float, hDp: Float): RemoteViews {
+        val rv = RemoteViews(c.packageName, R.layout.people_widget)
+        val s = State(c)
+        words(c, rv, s)
+        pictures(c, rv, s, wDp, hDp)
+        return rv
+    }
 
+    private fun sceneHeight(hDp: Float) = (hDp - 104).coerceAtLeast(70f)
+
+    /**
+     * A fingerprint of the picture part of the widget. While it stays the same, only the words
+     * are updated, so the launcher's animation carries on instead of starting again (which made
+     * the heart jump back or sit still every time any widget refreshed).
+     */
+    private fun signature(c: Context, s: State, wDp: Float, hDp: Float): String {
+        val first = PeopleArt.frames(c, wDp - 32, sceneHeight(hDp), s.g, s.me, s.others, 1).first()
+        val buf = java.nio.ByteBuffer.allocate(first.byteCount)
+        first.copyPixelsToBuffer(buf)
+        return "${s.g.id}/${s.scene}/${wDp.toInt()}x${hDp.toInt()}/${java.util.Arrays.hashCode(buf.array())}"
+    }
+
+    /** The scene: avatar frames and the travelling heart / plane. */
+    private fun pictures(c: Context, rv: RemoteViews, s: State, wDp: Float, hDp: Float) {
+        val g = s.g
         // Scene frames (the launcher cross-fades them; nothing runs in the app).
         rv.removeAllViews(R.id.people_frames)
-        val sceneH = (hDp - 104).coerceAtLeast(70f)
-        val frames = PeopleArt.frames(c, wDp - 32, sceneH, g, me, others)
+        val sceneH = sceneHeight(hDp)
+        val frames = PeopleArt.frames(c, wDp - 32, sceneH, g, s.me, s.others)
         for (b in frames) {
             val f = RemoteViews(c.packageName, R.layout.people_frame)
             f.setImageViewBitmap(R.id.people_frame, b)
@@ -146,7 +206,7 @@ object PeopleViews {
         // The heart / plane between two people who are apart: its own layer, moved by the launcher.
         rv.removeAllViews(R.id.people_fly_go)
         rv.removeAllViews(R.id.people_fly_sway)
-        val fly = if (data == null) null else PeopleArt.fly(c, wDp - 32, sceneH, g, me, others)
+        val fly = if (s.data == null) null else PeopleArt.fly(c, wDp - 32, sceneH, g, s.me, s.others)
         rv.setViewVisibility(R.id.people_fly_go, if (fly != null && !fly.sway) View.VISIBLE else View.GONE)
         rv.setViewVisibility(R.id.people_fly_sway, if (fly != null && fly.sway) View.VISIBLE else View.GONE)
         if (fly != null) {
@@ -158,22 +218,44 @@ object PeopleViews {
             rv.setViewLayoutHeight(id, fly.sizeDp, dip)
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_END, fly.sizeDp / 2, dip)
             rv.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, fly.aboveCentreDp.coerceAtLeast(0f), dip)
-            // Two copies: the flipper restarts its animation each time it flips to the next one.
-            repeat(2) {
+            // An empty one first, then two copies of the symbol. A flipper shows its first child
+            // without animating it whenever the widget is redrawn, which left a heart sitting
+            // still at the start of the line; now that moment is blank, and it reads as a short
+            // pause between trips. The flipper restarts its animation on each flip, hence two.
+            for (k in 0 until 3) {
                 val item = RemoteViews(c.packageName, R.layout.people_fly_item)
-                item.setImageViewBitmap(R.id.people_fly_item, fly.bitmap)
+                if (k > 0) item.setImageViewBitmap(R.id.people_fly_item, fly.bitmap)
                 item.setViewLayoutWidth(R.id.people_fly_item, fly.sizeDp, dip)
                 item.setViewLayoutHeight(R.id.people_fly_item, fly.sizeDp, dip)
                 rv.addView(id, item)
             }
         }
+    }
+
+    /** Everything that isn't a picture: titles, the two lines, the button and what taps do. */
+    private fun words(c: Context, rv: RemoteViews, s: State) {
+        val data = s.data
+        val g = s.g
+        val circle = s.circle
+        val scene = s.scene
+        val others = s.others
+        // With more than one group, the title is also a "next" button.
+        rv.setTextViewText(R.id.people_title, if (data == null) "PEOPLE" else if (s.groups > 1) circle.title + "  ›" else circle.title)
+        var status = if (data == null) "" else if (circle == Circle.FAMILY) "${others.size + 1} MEMBERS" else People.status(circle, scene, g)
+        // They answered what you sent with the same thing: say so.
+        val last = circle.action(g.lastAction)
+        if (scene == Scene.RECEIVED && last != null && g.lastFrom != null && PeopleHistory.returned(c, g.id, g.lastFrom, last.key, g.lastAt)) {
+            status = last.label.uppercase() + " RETURNED"
+        }
+        rv.setTextViewText(R.id.people_status, status)
+        rv.setTextColor(R.id.people_status, if (scene == Scene.TOGETHER || scene == Scene.RECEIVED) circle.accent else 0xFF969696.toInt())
 
         // Words under the scene.
         val (big, small) = when {
             data == null && !PeopleRepo.configured -> "People" to "coming in a future update"
             data == null -> "Pair with someone" to "open Glance Kit · People"
-            circle == Circle.FAMILY -> familyLines(g, me, others)
-            else -> People.lines(circle, scene, g, me, other)
+            circle == Circle.FAMILY -> familyLines(g, s.me, others)
+            else -> People.lines(circle, scene, g, s.me, s.other)
         }
         rv.setTextViewText(R.id.people_big, big)
         rv.setTextViewText(R.id.people_small, small)
@@ -182,6 +264,9 @@ object PeopleViews {
         val open = Views.openApp(c, "people", 170)
         rv.setOnClickPendingIntent(R.id.people_scene, open)
         rv.setOnClickPendingIntent(R.id.people_text, open)
+        rv.setOnClickPendingIntent(R.id.people_head, if (s.groups > 1) PendingIntent.getBroadcast(c, 174,
+            Intent(c, PeopleWidget::class.java).setAction(PeopleWidget.ACTION_NEXT),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT) else open)
         if (data == null || (others.isEmpty())) {
             rv.setTextViewText(R.id.people_btn, if (data == null) "Open" else "Invite")
             rv.setInt(R.id.people_btn, "setBackgroundResource", R.drawable.pill_grey)
@@ -197,7 +282,6 @@ object PeopleViews {
             rv.setOnClickPendingIntent(R.id.people_btn, PendingIntent.getBroadcast(c, 171, i,
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
         }
-        return rv
     }
 
     private fun familyLines(g: Group, me: Person, others: List<Person>): Pair<String, String> {

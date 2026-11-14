@@ -40,6 +40,14 @@ stacks two layers in `people_scene`:
   `setViewLayoutMargin` (`PeopleArt.fly` gives the numbers in dp); `100%p` in the animation is
   then the whole trip. The animation lasts exactly one flip interval and uses `fillAfter`.
 
+A full `updateAppWidget` restarts both animations, and `refreshAll` runs often (every minute
+while charging). So `PeopleViews.update` fingerprints the picture (first frame's pixels, group,
+scene, size) and, while it's unchanged, sends only the words with `partiallyUpdateAppWidget`
+(text and click intents, never bitmaps). `force = true` (system `onUpdate`, resize) always
+redraws; so does anything older than 3 hours. The fly flipper's first child is empty on
+purpose: a flipper shows its first child without animating it after a redraw, which used to
+leave a heart sitting still at the start of the line.
+
 Don't draw anything that should move far into the frames: a handful of frames can only step.
 An animation can't be changed from code (only picked by layout), which is why there are two
 flippers and why the trip length is set through the flipper's width.
