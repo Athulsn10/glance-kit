@@ -32,6 +32,56 @@ class WidgetInflateTest {
         apply("people, no groups") { PeopleViews.views(ctx, 320f, 180f) }
     }
 
+    /** The travelling heart's layers: shown, sized and filled the way PeopleViews does it. */
+    @Test fun peopleFlyLayers() = apply("people fly layers") {
+        val rv = RemoteViews(ctx.packageName, R.layout.people_widget)
+        val dip = android.util.TypedValue.COMPLEX_UNIT_DIP
+        for (id in intArrayOf(R.id.people_fly_go, R.id.people_fly_sway)) {
+            rv.setViewVisibility(id, android.view.View.VISIBLE)
+            rv.setViewLayoutWidth(id, 120f, dip)
+            rv.setViewLayoutHeight(id, 30f, dip)
+            rv.setViewLayoutMargin(id, RemoteViews.MARGIN_END, 15f, dip)
+            rv.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, 20f, dip)
+            repeat(2) {
+                val item = RemoteViews(ctx.packageName, R.layout.people_fly_item)
+                item.setImageViewBitmap(R.id.people_fly_item, android.graphics.Bitmap.createBitmap(30, 30, android.graphics.Bitmap.Config.ARGB_8888))
+                item.setViewLayoutWidth(R.id.people_fly_item, 30f, dip)
+                item.setViewLayoutHeight(R.id.people_fly_item, 30f, dip)
+                rv.addView(id, item)
+            }
+        }
+        rv
+    }
+
+    /** Two people a known distance apart, drawn straight from PeopleArt (no saved location needed). */
+    @Test fun peopleFlyForEachDistance() {
+        val now = System.currentTimeMillis()
+        val me = Person("me", "Me", Avatar(), 10.52, 76.21, now, false, null, false, null, 0)
+        for (circle in listOf(Circle.COUPLE, Circle.FRIENDS)) for ((name, lat) in listOf("near" to 10.53, "city" to 10.7, "far" to 12.5)) {
+            val them = me.copy(uid = "them", name = "Sam", lat = lat)
+            val g = Group("g1", circle, listOf("me", "them"), null, null, 0)
+            for ((w, h) in listOf(218f to 70f, 368f to 116f, 568f to 296f)) {
+                val fly = PeopleArt.fly(ctx, w, h, g, me, listOf(them)) ?: throw AssertionError("$circle $name ${w}x$h: no traveller")
+                if (fly.sway != (name == "near")) throw AssertionError("$circle $name: wrong kind of trip")
+                if (fly.trackDp <= 0f || fly.trackDp > w || fly.sizeDp <= 0f || fly.aboveCentreDp < 0f) {
+                    throw AssertionError("$circle $name ${w}x$h: trip ${fly.trackDp}dp, size ${fly.sizeDp}dp, up ${fly.aboveCentreDp}dp")
+                }
+                val frames = PeopleArt.frames(ctx, w, h, g, me, listOf(them))
+                if (frames.size !in 3..6 || frames.sumOf { it.byteCount } > 3_100_000) throw AssertionError("$circle $name ${w}x$h: ${frames.size} frames, ${frames.sumOf { it.byteCount }} bytes")
+            }
+        }
+    }
+
+    /** An avatar wears one extra per spot, however it was saved. */
+    @Test fun extrasOnePerSpot() {
+        val all = Avatar(acc = AvatarArt.EXTRAS.toSet()).sane().acc
+        if (all.map { AvatarArt.EXTRA_SLOTS[it] }.toSet().size != all.size) throw AssertionError("stacked extras survived: $all")
+        for ((_, a) in AvatarArt.PRESETS) if (a.sane() != a) throw AssertionError("a starting look breaks the one-per-spot rule: $a")
+        val swapped = AvatarArt.toggleExtra(setOf("beanie", "earrings"), "cap")
+        if (swapped != setOf("cap", "earrings")) throw AssertionError("cap should replace beanie and keep earrings: $swapped")
+        if (AvatarArt.toggleExtra(swapped, "cap") != setOf("earrings")) throw AssertionError("tapping again should take it off")
+    }
+
     @Test fun peoplePaired() {
         val them = Person("them", "Sam", Avatar(), 10.52, 76.21, System.currentTimeMillis(), false, "Asia/Kolkata", false, null, 0)
         for (circle in Circle.entries) {

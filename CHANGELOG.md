@@ -3,6 +3,34 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [Unreleased]
+
+### Added
+- Every action now plays a full-screen moment in the app, when you send one and when one
+  arrives: the avatars run in for a hug, lean in for a kiss on the cheek, jump for a high five,
+  poke, send a paper plane, walk up to a glowing house and more, with hearts, confetti or a
+  little screen shake around them. Tap to skip. It's skipped if your phone has animations off.
+- "Returned": send back the same thing within 30 minutes and both phones get a bigger version,
+  and the widget says e.g. HUG RETURNED. This is worked out on your phone; nothing new is shared.
+- Partners can send everything: Love you, High five, Poke, Hang out?, Call me and Home safe
+  join Hug, Miss you and Kiss. Friends and Family are unchanged. Needs the backend deployed
+  first, and both phones updated.
+- Tap an avatar on the People tab and it hops and laughs. Avatars blink.
+- The widget shows what arrived: its own symbol and pose for a hug, kiss, poke and the rest.
+
+### Changed
+- Each action button has its own colour (it used to look like only the first one did something).
+- Avatar extras are one per spot: one thing on the eyes, one on the head, one hair clip, and
+  earrings. Picking a second hat swaps it for the first. Avatars saved with a pile of extras
+  are trimmed the same way on every phone.
+
+### Fixed
+- An action that arrives while Glance Kit is open now always buzzes your phone (unless it's on
+  silent or Do Not Disturb), instead of relying on the notification to do it. Actions added in
+  an update get their own buzz pattern without a reinstall.
+- People widget: the heart (or plane) between you no longer jumps between three positions and
+  stops half way. It now glides the whole way across, and the avatars bob smoothly.
+
 ## [1.20.8] - 2026-11-09
 
 ### Fixed

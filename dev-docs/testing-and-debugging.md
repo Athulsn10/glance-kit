@@ -25,4 +25,5 @@
 | Sender's phone vibrates | Local buzz on tap | Only the receiver vibrates |
 | Widget send "check your internet" | 9 s broadcast limit vs. cold start | Send in `PeopleSendWork` |
 | `TOO_MANY_REGISTRATIONS` | Emulator's Play services out of FCM registrations | Wipe the emulator or use a real phone |
+| Action arrives but the phone doesn't buzz | Channel vibration depends on the phone's settings (notification vibration off, silent, Do Not Disturb, notification cooldown) | With the app open we also buzz directly (`PeopleSync.buzz`); with it closed only the channel can buzz, so check those settings and the `received` lines in Backend logs |
 | `RESOURCE_EXHAUSTED` | Sends less than 1 s apart | Expected rate limit |

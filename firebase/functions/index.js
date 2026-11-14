@@ -59,7 +59,8 @@ function summarize(d) {
 const { FieldValue, Timestamp } = admin.firestore;
 
 const CIRCLES = {
-  couple: { max: 2, actions: ["hug", "miss", "kiss"] },
+  // Partners can send everything, including what friends and family have.
+  couple: { max: 2, actions: ["hug", "miss", "kiss", "love", "highfive", "poke", "hangout", "call", "home"] },
   friends: { max: 2, actions: ["highfive", "poke", "hangout"] },
   family: { max: 5, actions: ["home", "call", "love"] },
 };

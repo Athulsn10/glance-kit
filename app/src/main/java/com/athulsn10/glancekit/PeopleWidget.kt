@@ -13,6 +13,8 @@ import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.work.Constraints
@@ -122,18 +124,48 @@ object PeopleViews {
         val scene = if (data == null) Scene.WAITING else if (circle == Circle.FAMILY) Scene.NEAR else People.scene(g, me, other)
 
         rv.setTextViewText(R.id.people_title, if (data == null) "PEOPLE" else circle.title)
-        val status = if (data == null) "" else if (circle == Circle.FAMILY) "${others.size + 1} MEMBERS" else People.status(circle, scene, g)
+        var status = if (data == null) "" else if (circle == Circle.FAMILY) "${others.size + 1} MEMBERS" else People.status(circle, scene, g)
+        // They answered what you sent with the same thing: say so.
+        val last = circle.action(g.lastAction)
+        if (scene == Scene.RECEIVED && last != null && g.lastFrom != null && PeopleHistory.returned(c, g.id, g.lastFrom, last.key, g.lastAt)) {
+            status = last.label.uppercase() + " RETURNED"
+        }
         rv.setTextViewText(R.id.people_status, status)
         rv.setTextColor(R.id.people_status, if (scene == Scene.TOGETHER || scene == Scene.RECEIVED) circle.accent else 0xFF969696.toInt())
 
-        // Scene frames (the launcher flips them; nothing runs in the app).
+        // Scene frames (the launcher cross-fades them; nothing runs in the app).
         rv.removeAllViews(R.id.people_frames)
         val sceneH = (hDp - 104).coerceAtLeast(70f)
-        val frames = PeopleArt.frames(c, wDp - 32, sceneH, g, me, others, if (scene == Scene.WAITING) 2 else 3)
+        val frames = PeopleArt.frames(c, wDp - 32, sceneH, g, me, others)
         for (b in frames) {
             val f = RemoteViews(c.packageName, R.layout.people_frame)
             f.setImageViewBitmap(R.id.people_frame, b)
             rv.addView(R.id.people_frames, f)
+        }
+
+        // The heart / plane between two people who are apart: its own layer, moved by the launcher.
+        rv.removeAllViews(R.id.people_fly_go)
+        rv.removeAllViews(R.id.people_fly_sway)
+        val fly = if (data == null) null else PeopleArt.fly(c, wDp - 32, sceneH, g, me, others)
+        rv.setViewVisibility(R.id.people_fly_go, if (fly != null && !fly.sway) View.VISIBLE else View.GONE)
+        rv.setViewVisibility(R.id.people_fly_sway, if (fly != null && fly.sway) View.VISIBLE else View.GONE)
+        if (fly != null) {
+            val id = if (fly.sway) R.id.people_fly_sway else R.id.people_fly_go
+            val dip = TypedValue.COMPLEX_UNIT_DIP
+            // The flipper is as wide as the trip and sits in the middle of the scene; the margins
+            // nudge it so the symbol's centre starts on the track, at the right height.
+            rv.setViewLayoutWidth(id, fly.trackDp.coerceAtLeast(1f), dip)
+            rv.setViewLayoutHeight(id, fly.sizeDp, dip)
+            rv.setViewLayoutMargin(id, RemoteViews.MARGIN_END, fly.sizeDp / 2, dip)
+            rv.setViewLayoutMargin(id, RemoteViews.MARGIN_BOTTOM, fly.aboveCentreDp.coerceAtLeast(0f), dip)
+            // Two copies: the flipper restarts its animation each time it flips to the next one.
+            repeat(2) {
+                val item = RemoteViews(c.packageName, R.layout.people_fly_item)
+                item.setImageViewBitmap(R.id.people_fly_item, fly.bitmap)
+                item.setViewLayoutWidth(R.id.people_fly_item, fly.sizeDp, dip)
+                item.setViewLayoutHeight(R.id.people_fly_item, fly.sizeDp, dip)
+                rv.addView(id, item)
+            }
         }
 
         // Words under the scene.
@@ -148,7 +180,7 @@ object PeopleViews {
 
         // Action button: the circle's first action (or Home safe for family).
         val open = Views.openApp(c, "people", 170)
-        rv.setOnClickPendingIntent(R.id.people_frames, open)
+        rv.setOnClickPendingIntent(R.id.people_scene, open)
         rv.setOnClickPendingIntent(R.id.people_text, open)
         if (data == null || (others.isEmpty())) {
             rv.setTextViewText(R.id.people_btn, if (data == null) "Open" else "Invite")
@@ -234,6 +266,14 @@ class PeopleSync(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
             else -> "?"
         }
 
+        /** False when the phone is on silent or Do Not Disturb, so we don't buzz through it. */
+        fun mayBuzz(c: Context): Boolean {
+            val silent = c.getSystemService(android.media.AudioManager::class.java)?.ringerMode == android.media.AudioManager.RINGER_MODE_SILENT
+            val dnd = c.getSystemService(NotificationManager::class.java)?.currentInterruptionFilter
+                ?.let { it != NotificationManager.INTERRUPTION_FILTER_ALL } ?: false
+            return !silent && !dnd
+        }
+
         fun buzz(c: Context, pattern: LongArray) {
             val v: Vibrator = c.getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return
             val attrs = android.os.VibrationAttributes.Builder()
@@ -257,7 +297,10 @@ class PeopleSendWork(ctx: Context, params: WorkerParameters) : CoroutineWorker(c
                 PeopleLog.e(c, "widget send $action", IllegalStateException("Timed out after 45 s"))
                 "That took too long. Check your internet and try again."
             }
-            res.isSuccess -> res.getOrThrow().message(label, gd?.others?.firstOrNull()?.name ?: "their")
+            res.isSuccess -> {
+                PeopleRepo.uidNow(c)?.let { PeopleHistory.note(c, gid, it, action) } // so a reply can count as "returned"
+                res.getOrThrow().message(label, gd?.others?.firstOrNull()?.name ?: "their")
+            }
             else -> { val e = res.exceptionOrNull()!!; PeopleLog.e(c, "widget send $action", e); PeopleLog.friendly(e) }
         }
         android.os.Handler(android.os.Looper.getMainLooper()).post { Toast.makeText(c, msg, Toast.LENGTH_SHORT).show() }
@@ -289,11 +332,14 @@ class PeopleMessaging : FirebaseMessagingService() {
          */
         fun channels(c: Context) {
             val nm = c.getSystemService(NotificationManager::class.java) ?: return
-            if (nm.getNotificationChannel(CHANNEL) != null) return
-            // Tidy away channels from older builds.
-            nm.notificationChannels.filter { it.id.startsWith("people_") && it.id != "people_updates" }
-                .forEach { runCatching { nm.deleteNotificationChannel(it.id) } }
+            if (nm.getNotificationChannel(CHANNEL) == null) {
+                // First run of this channel set: tidy away channels from older builds.
+                nm.notificationChannels.filter { it.id.startsWith("people_") && it.id != "people_updates" }
+                    .forEach { runCatching { nm.deleteNotificationChannel(it.id) } }
+            }
+            // Make whichever are missing, so actions added in an update get their buzz too.
             for (circle in Circle.entries) for (a in circle.actions) {
+                if (nm.getNotificationChannel(channelId(circle, a)) != null) continue
                 nm.createNotificationChannel(NotificationChannel(channelId(circle, a), "${circle.label}: ${a.label}", NotificationManager.IMPORTANCE_HIGH).apply {
                     description = "When someone sends you a ${a.label.lowercase()}. It buzzes in its own pattern."
                     enableVibration(true)
@@ -339,7 +385,11 @@ class PeopleMessaging : FirebaseMessagingService() {
         // Arrives here when the app is open (otherwise Android shows the notification itself, from
         // the cloud's notification part). Same channel either way, so it vibrates the same.
         val shown = canAlert(this, channelId(circle, action))
-        if (shown) notify(circle, action, name, gid) else PeopleSync.buzz(this, action.pattern)
+        if (shown) notify(circle, action, name, gid)
+        // Buzz it ourselves as well. The notification's channel should vibrate, but that depends
+        // on phone settings we can't see (it was reported not buzzing at all), and here the app
+        // is running, so we can be sure. Stays quiet when the phone is on silent or Do Not Disturb.
+        if (!shown || PeopleSync.mayBuzz(this)) PeopleSync.buzz(this, action.pattern)
         PeopleLog.info(this, "received ${action.key}", "app open, priority ${msg.priority}/${msg.originalPriority}, notifications $shown, " +
             "vibrator ${PeopleSync.canVibrate(this)}, ringer ${PeopleSync.ringer(this)}, ${System.currentTimeMillis() - msg.sentTime} ms after sending")
         if (d["test"] == "1") return

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  People widget: the heart / plane crosses from one avatar to the other in one smooth trip,
+  rising in the middle, fading in as it leaves and out as it arrives. The flipper is exactly as
+  wide as the trip, so 100%p is the whole way. Lasts as long as the flip interval and keeps its
+  last (invisible) state, so nothing shows at the start point between trips.
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:fillAfter="true"
+    android:shareInterpolator="false">
+    <translate
+        android:duration="2400"
+        android:fromXDelta="0"
+        android:interpolator="@android:anim/linear_interpolator"
+        android:toXDelta="100%p" />
+    <translate
+        android:duration="2400"
+        android:fromYDelta="0"
+        android:interpolator="@anim/people_arc"
+        android:toYDelta="-45%" />
+    <alpha
+        android:duration="260"
+        android:fromAlpha="0.0"
+        android:interpolator="@android:anim/linear_interpolator"
+        android:toAlpha="1.0" />
+    <alpha
+        android:duration="320"
+        android:fromAlpha="1.0"
+        android:interpolator="@android:anim/linear_interpolator"
+        android:startOffset="2080"
+        android:toAlpha="0.0" />
+</set>

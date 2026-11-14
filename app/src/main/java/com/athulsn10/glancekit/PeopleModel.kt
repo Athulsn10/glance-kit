@@ -11,7 +11,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /** Something you can send: it buzzes the other phone with its own vibration pattern. */
-data class PeopleAction(val key: String, val label: String, val pattern: LongArray, val past: String)
+data class PeopleAction(val key: String, val label: String, val pattern: LongArray, val past: String, val color: Int)
 
 /** Who a group is for: its look, symbol, actions and size. */
 enum class Circle(
@@ -20,19 +20,26 @@ enum class Circle(
     val actions: List<PeopleAction>,
 ) {
     COUPLE("couple", "Partner", "US", 0xFFFF7A96.toInt(), 0xFFFF7A96.toInt(), "heart", 2, listOf(
-        PeopleAction("hug", "Hug", longArrayOf(0, 80, 90, 80, 420, 80, 90, 80), "sent a hug"),
-        PeopleAction("miss", "Miss you", longArrayOf(0, 650, 220, 650), "misses you"),
-        PeopleAction("kiss", "Kiss", longArrayOf(0, 60, 140, 60), "sent a kiss"),
+        PeopleAction("hug", "Hug", longArrayOf(0, 80, 90, 80, 420, 80, 90, 80), "sent a hug", 0xFFFF7A96.toInt()),
+        PeopleAction("miss", "Miss you", longArrayOf(0, 650, 220, 650), "misses you", 0xFF9B8CFF.toInt()),
+        PeopleAction("kiss", "Kiss", longArrayOf(0, 60, 140, 60), "sent a kiss", 0xFFF0506E.toInt()),
+        // Partners also get what friends and family have (same keys, buzz and colours).
+        PeopleAction("love", "Love you", longArrayOf(0, 80, 90, 80, 420, 80, 90, 80), "sends love", 0xFFFF9EB4.toInt()),
+        PeopleAction("highfive", "High five", longArrayOf(0, 45, 70, 45), "sent a high five", 0xFF5EC4FF.toInt()),
+        PeopleAction("poke", "Poke", longArrayOf(0, 90), "poked you", 0xFFFFCE54.toInt()),
+        PeopleAction("hangout", "Hang out?", longArrayOf(0, 100, 80, 100, 80, 100), "wants to hang out", 0xFF6FD6A0.toInt()),
+        PeopleAction("call", "Call me", longArrayOf(0, 200, 150, 200, 150, 200), "asked you to call", 0xFF7FB2FF.toInt()),
+        PeopleAction("home", "Home safe", longArrayOf(0, 70, 140, 70), "got home safe", 0xFFFFB84C.toInt()),
     )),
     FRIENDS("friends", "Friend", "BESTIES", 0xFF5EC4FF.toInt(), 0xFFFFCE54.toInt(), "star", 2, listOf(
-        PeopleAction("highfive", "High five", longArrayOf(0, 45, 70, 45), "sent a high five"),
-        PeopleAction("poke", "Poke", longArrayOf(0, 90), "poked you"),
-        PeopleAction("hangout", "Hang out?", longArrayOf(0, 100, 80, 100, 80, 100), "wants to hang out"),
+        PeopleAction("highfive", "High five", longArrayOf(0, 45, 70, 45), "sent a high five", 0xFF5EC4FF.toInt()),
+        PeopleAction("poke", "Poke", longArrayOf(0, 90), "poked you", 0xFFFFCE54.toInt()),
+        PeopleAction("hangout", "Hang out?", longArrayOf(0, 100, 80, 100, 80, 100), "wants to hang out", 0xFF6FD6A0.toInt()),
     )),
     FAMILY("family", "Family", "FAMILY", 0xFFFFB84C.toInt(), 0xFF82D696.toInt(), "home", 5, listOf(
-        PeopleAction("home", "Home safe", longArrayOf(0, 70, 140, 70), "got home safe"),
-        PeopleAction("call", "Call me", longArrayOf(0, 200, 150, 200, 150, 200), "asked you to call"),
-        PeopleAction("love", "Love you", longArrayOf(0, 80, 90, 80, 420, 80, 90, 80), "sends love"),
+        PeopleAction("home", "Home safe", longArrayOf(0, 70, 140, 70), "got home safe", 0xFFFFB84C.toInt()),
+        PeopleAction("call", "Call me", longArrayOf(0, 200, 150, 200, 150, 200), "asked you to call", 0xFF5EC4FF.toInt()),
+        PeopleAction("love", "Love you", longArrayOf(0, 80, 90, 80, 420, 80, 90, 80), "sends love", 0xFFFF7A96.toInt()),
     ));
 
     fun action(key: String?) = actions.firstOrNull { it.key == key }

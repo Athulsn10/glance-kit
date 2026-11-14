@@ -272,21 +272,33 @@ object PeoplePage {
             if (gd.others.isNotEmpty()) {
                 addView(Ui.label(c, "SEND · EACH BUZZES DIFFERENTLY"))
                 addView(Ui.spacer(c, 8))
-                val row = Ui.hstack(c)
-                circle.actions.forEachIndexed { i, act ->
-                    row.addView(Ui.text(c, act.label, 14f, Ui.WHITE, medium = true, gravity = Gravity.CENTER).apply {
-                        background = Ui.rounded(if (i == 0) circle.accent else 0xFF242424.toInt(), Ui.dp(c, 22).toFloat())
-                        setOnClickListener {
-                            // No buzz here: only the people you send it to feel it.
-                            scope.launch {
-                                val res = withContext(Dispatchers.IO) { runCatching { PeopleRepo.send(c, g.id, act.key) } }
-                                val msg = res.fold({ it.message(act.label, other?.name ?: "their") }, { PeopleLog.e(c, "send ${act.key}", it); PeopleLog.friendly(it) })
-                                Toast.makeText(c, msg, if (res.getOrNull()?.sent ?: 0 > 0) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
+                // Three to a row (partners have nine).
+                circle.actions.chunked(3).forEachIndexed { r, rowActs ->
+                    if (r > 0) addView(Ui.spacer(c, 8))
+                    val row = Ui.hstack(c)
+                    rowActs.forEachIndexed { i, act ->
+                        // Every action gets its own colour, so none looks like "the" button.
+                        row.addView(Ui.text(c, act.label, 14f, Ui.BG, medium = true, gravity = Gravity.CENTER).apply {
+                            background = Ui.rounded(act.color, Ui.dp(c, 22).toFloat())
+                            setOnClickListener {
+                                // No buzz here: only the people you send it to feel it. The moment
+                                // plays straight away; the toast below says how the send went.
+                                val to = other ?: gd.others.first()
+                                val returned = PeopleHistory.returned(c, g.id, me.uid, act.key)
+                                PeopleFxOverlay.play(a, PeopleFx.Spec(circle, act, me.avatar, to.avatar, to.name, sentByMe = true, returned = returned))
+                                scope.launch {
+                                    val res = withContext(Dispatchers.IO) { runCatching { PeopleRepo.send(c, g.id, act.key) } }
+                                    if (res.isSuccess) PeopleHistory.note(c, g.id, me.uid, act.key)
+                                    val msg = res.fold({ it.message(act.label, other?.name ?: "their") }, { PeopleLog.e(c, "send ${act.key}", it); PeopleLog.friendly(it) })
+                                    Toast.makeText(c, msg, if (res.getOrNull()?.sent ?: 0 > 0) Toast.LENGTH_SHORT else Toast.LENGTH_LONG).show()
+                                }
                             }
-                        }
-                    }, LinearLayout.LayoutParams(0, Ui.dp(c, 46), 1f).apply { if (i > 0) marginStart = Ui.dp(c, 8) })
+                        }, LinearLayout.LayoutParams(0, Ui.dp(c, 46), 1f).apply { if (i > 0) marginStart = Ui.dp(c, 8) })
+                    }
+                    // Keep a short last row's buttons the same width as the rest.
+                    repeat(3 - rowActs.size) { row.addView(View(c), LinearLayout.LayoutParams(0, 1, 1f).apply { marginStart = Ui.dp(c, 8) }) }
+                    addView(row)
                 }
-                addView(row)
                 addView(Ui.spacer(c, 10))
             }
             val row2 = Ui.hstack(c)
@@ -515,7 +527,7 @@ class AvatarEditorActivity : Activity() {
         body.addView(PeoplePage.chips(c, AvatarArt.OUTFIT_STYLES.map { it.replaceFirstChar(Char::uppercase) }, AvatarArt.OUTFIT_STYLES.indexOf(av.outfit)) { i -> set(av.copy(outfit = AvatarArt.OUTFIT_STYLES[i])) }, Ui.params(c, 8))
         body.addView(swatches(c, AvatarArt.OUTFITS, av.color) { set(av.copy(color = it)) }, Ui.params(c, 10))
 
-        body.addView(Ui.label(c, "EXTRAS · PICK ANY"), Ui.params(c, 20))
+        body.addView(Ui.label(c, "EXTRAS · ONE PER SPOT"), Ui.params(c, 20))
         val extras = Ui.vstack(c)
         AvatarArt.EXTRAS.chunked(4).forEach { chunk ->
             val row = Ui.hstack(c)
@@ -523,7 +535,8 @@ class AvatarEditorActivity : Activity() {
                 val on = e in av.acc
                 row.addView(Ui.text(c, AvatarArt.EXTRA_LABELS[e] ?: e, 13f, if (on) Ui.BG else Ui.WHITE, medium = true, gravity = Gravity.CENTER).apply {
                     background = Ui.rounded(if (on) Ui.WHITE else 0xFF1E1E1E.toInt(), Ui.dp(c, 17).toFloat())
-                    setOnClickListener { set(av.copy(acc = if (on) av.acc - e else av.acc + e)) }
+                    // Picking a second hat (or second pair of glasses) swaps it for the first.
+                    setOnClickListener { set(av.copy(acc = AvatarArt.toggleExtra(av.acc, e))) }
                 }, LinearLayout.LayoutParams(0, Ui.dp(c, 36), 1f).apply { if (i > 0) marginStart = Ui.dp(c, 8) })
             }
             repeat(4 - chunk.size) { row.addView(View(c), LinearLayout.LayoutParams(0, 1, 1f).apply { marginStart = Ui.dp(c, 8) }) }

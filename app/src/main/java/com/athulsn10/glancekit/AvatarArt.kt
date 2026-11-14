@@ -61,7 +61,7 @@ data class Avatar(
         style = if (style in AvatarArt.BOY_STYLES || style in AvatarArt.GIRL_STYLES) style else if (gender == "f") "long" else "short",
         outfit = if (outfit in AvatarArt.OUTFIT_STYLES) outfit else "tee",
         color = color.coerceIn(0, AvatarArt.OUTFITS.size - 1),
-        acc = acc.filter { it in AvatarArt.EXTRAS }.toSet(),
+        acc = AvatarArt.oneEach(acc),
     )
 }
 
@@ -74,7 +74,8 @@ enum class Mood(val label: String) {
     }
 }
 
-enum class Arms { DOWN, WAVE, HUG, HEART }
+/** WAVE raises the right arm, WAVE_L the left; UP raises both. */
+enum class Arms { DOWN, WAVE, WAVE_L, UP, HUG, HEART }
 
 /**
  * Cute chibi avatars drawn with Canvas: a big round head, a little body, twelve moods.
@@ -98,6 +99,30 @@ object AvatarArt {
         "glasses" to "Glasses", "shades" to "Shades", "cap" to "Cap", "beanie" to "Beanie", "headphones" to "Headphones",
         "bandana" to "Bandana", "bow" to "Bow", "flower" to "Flower", "catears" to "Cat ears", "earrings" to "Earrings",
     )
+
+    /**
+     * Where each extra sits. An avatar wears at most one extra per spot, so hats, ears and
+     * headphones can't pile up on the same head.
+     */
+    val EXTRA_SLOTS = mapOf(
+        "glasses" to "eyes", "shades" to "eyes",
+        "cap" to "head", "beanie" to "head", "bandana" to "head", "catears" to "head", "headphones" to "head",
+        "bow" to "clip", "flower" to "clip",
+        "earrings" to "ears",
+    )
+
+    /** Keep known extras only, one per spot (the first in [EXTRAS] order wins). */
+    fun oneEach(acc: Set<String>): Set<String> {
+        val taken = HashSet<String>()
+        return EXTRAS.filter { it in acc && taken.add(EXTRA_SLOTS[it] ?: it) }.toSet()
+    }
+
+    /** Tap an extra: take it off if it's on, otherwise put it on in place of whatever shares its spot. */
+    fun toggleExtra(acc: Set<String>, e: String): Set<String> {
+        if (e in acc) return acc - e
+        val slot = EXTRA_SLOTS[e]
+        return acc.filter { EXTRA_SLOTS[it] != slot }.toSet() + e
+    }
 
     /** Sixteen starting looks. */
     val PRESETS: List<Pair<String, Avatar>> = listOf(
@@ -252,6 +277,15 @@ object AvatarArt {
                 handAt(X - bw / 2 - s * 0.02f, ay)
                 c.line(X + bw / 2 - s * 0.06f, by0 + r * 0.2f, X + bw / 2 + s * 0.26f, by0 - r * 0.25f, sh, s * 0.11f)
                 handAt(X + bw / 2 + s * 0.28f, by0 - r * 0.32f)
+            }
+            Arms.WAVE_L -> {
+                handAt(X + bw / 2 + s * 0.02f, ay)
+                c.line(X - bw / 2 + s * 0.06f, by0 + r * 0.2f, X - bw / 2 - s * 0.26f, by0 - r * 0.25f, sh, s * 0.11f)
+                handAt(X - bw / 2 - s * 0.28f, by0 - r * 0.32f)
+            }
+            Arms.UP -> for (sx in intArrayOf(-1, 1)) {
+                c.line(X + sx * bw * 0.4f, by0 + r * 0.2f, X + sx * r * 1.1f, Y + r * 0.34f, sh, s * 0.11f)
+                handAt(X + sx * r * 1.16f, Y + r * 0.24f)
             }
             Arms.HUG -> for (sx in intArrayOf(-1, 1)) {
                 c.line(X + sx * bw * 0.4f, by0 + r * 0.2f, X + sx * (bw / 2 + s * 0.2f), by0 + r * 0.05f, sh, s * 0.11f)

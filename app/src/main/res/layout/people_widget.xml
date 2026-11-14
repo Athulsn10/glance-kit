@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  People widget: header, a looping scene (frames flipped by the launcher itself, so the
-  animation costs the app nothing), then the distance line and an action button.
+  People widget: header, a looping scene (frames and a travelling heart, both animated by the
+  launcher itself, so the animation costs the app nothing), then the distance line and an
+  action button.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/people_root"
@@ -41,13 +42,51 @@
             android:textSize="10sp" />
     </LinearLayout>
 
-    <ViewFlipper
-        android:id="@+id/people_frames"
+    <!--
+      The scene. Bottom layer: the avatars, a few frames the launcher cross-fades. Top layer:
+      the heart / plane that travels between two people who are apart, moved by a view animation
+      so it glides instead of jumping between frames. Only one of the two top flippers is shown.
+    -->
+    <FrameLayout
+        android:id="@+id/people_scene"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:autoStart="true"
-        android:flipInterval="380" />
+        android:clipChildren="false">
+
+        <ViewFlipper
+            android:id="@+id/people_frames"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:autoStart="true"
+            android:flipInterval="400"
+            android:inAnimation="@anim/people_frame_in"
+            android:outAnimation="@anim/people_frame_hold" />
+
+        <!-- Travels from one end of its own width to the other (CITY, FAR). Sized in code. -->
+        <ViewFlipper
+            android:id="@+id/people_fly_go"
+            android:layout_width="40dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:autoStart="true"
+            android:clipChildren="false"
+            android:flipInterval="2400"
+            android:inAnimation="@anim/people_fly_go"
+            android:visibility="gone" />
+
+        <!-- Sways around its own middle (NEAR). Sized in code. -->
+        <ViewFlipper
+            android:id="@+id/people_fly_sway"
+            android:layout_width="40dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:autoStart="true"
+            android:clipChildren="false"
+            android:flipInterval="2400"
+            android:inAnimation="@anim/people_fly_sway"
+            android:visibility="gone" />
+    </FrameLayout>
 
     <!-- Widgets only allow certain view classes; a plain View breaks the whole widget. -->
     <FrameLayout

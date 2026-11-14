@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  People widget, when you're near each other: the heart / plane drifts back and forth between
+  you, bobbing a little. It starts and ends in the middle, so the loop has no jump.
+-->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:fillAfter="true"
+    android:shareInterpolator="false">
+    <translate
+        android:duration="2400"
+        android:fromXDelta="50%p"
+        android:interpolator="@anim/people_wave"
+        android:toXDelta="100%p" />
+    <translate
+        android:duration="2400"
+        android:fromYDelta="0"
+        android:interpolator="@anim/people_hops"
+        android:toYDelta="-14%" />
+</set>

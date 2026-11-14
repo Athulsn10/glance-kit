@@ -401,6 +401,7 @@ object PeopleRepo {
             if (it.group.id == groupId) it.copy(group = it.group.copy(lastFrom = from, lastAction = action, lastAt = System.currentTimeMillis())) else it
         }
         saveGroups(c, list)
+        PeopleHistory.note(c, groupId, from, action) // so we can tell when one of ours is returned
     }
 
     /** The group the widget shows: the one picked in the app, or the first. */
