@@ -1,0 +1,14 @@
+#!/bin/bash
+# Release the current version: signed AAB/APK, Google Play upload, GitHub release.
+# Usage: gk-release internal|alpha|beta|production [--no-play] [--draft]
+source "$(dirname "$0")/gk-common.sh"
+track="${1:-}"
+case "$track" in internal|alpha|beta|production) ;; *) gk_die "Usage: gk-release internal|alpha|beta|production [--no-play] [--draft]" ;; esac
+shift
+play=true; status=completed
+for a in "$@"; do
+  case "$a" in --no-play) play=false ;; --draft) status=draft ;; *) gk_die "Unknown option: $a" ;; esac
+done
+id="$(gk_dispatch release.yml "{\"track\":\"$track\",\"status\":\"$status\",\"play\":$play}")"
+echo "Release started (track $track, status $status, upload to Play: $play): run $id"
+echo "Follow it with: ~/.glancekit/bin/gk-status $id --wait"

@@ -1,0 +1,16 @@
+#!/bin/bash
+# Start a read-only workflow (build, widget test, backend logs, Play check) and print its run id.
+# Usage: gk-run build|widget-test|backend-logs|play-check [hours]   (hours: backend-logs only)
+source "$(dirname "$0")/gk-common.sh"
+case "${1:-}" in
+  build) wf=build.yml; inputs='{}' ;;
+  widget-test) wf=widget-test.yml; inputs='{}' ;;
+  play-check) wf=play-check.yml; inputs='{}' ;;
+  backend-logs)
+    h="${2:-24}"; [[ "$h" =~ ^[0-9]{1,3}$ ]] || gk_die "hours must be a number"
+    wf=backend-logs.yml; inputs="{\"hours\":\"$h\"}" ;;
+  *) gk_die "Usage: gk-run build|widget-test|backend-logs|play-check [hours]" ;;
+esac
+id="$(gk_dispatch "$wf" "$inputs")"
+echo "Started $wf: run $id"
+echo "Follow it with: ~/.glancekit/bin/gk-status $id --wait"

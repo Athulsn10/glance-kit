@@ -12,5 +12,8 @@
   `.claude/skills/agent-workflow/`): you plan and review on Opus, `gk-implementer` and `gk-qa`
   (Sonnet) build and check, `gk-finder` (Haiku) searches. See dev-docs/agent-workflow.md.
 - Project slash commands live in `.claude/commands/` (`/add-widget`, `/release-prep`).
+- Never read, print or ask for keys. Run GitHub workflows and push only through
+  `~/.glancekit/bin/gk-*` (tools/agent-scripts/README.md); if a script says a key is missing,
+  ask the owner to run `gk-setup` in Terminal. `.claude/settings.json` enforces this.
 - A local `context/` folder may exist with private notes and credentials. It's git-ignored:
   never copy anything from it into tracked files, commits, PRs or logs.

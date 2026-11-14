@@ -34,6 +34,15 @@ widgets are `RemoteViews`. People has a small Firebase backend.
 npm ci --prefix firebase/functions      # backend dependencies
 node --check firebase/functions/index.js
 ```
+Workflows from an agent (keys stay in the Keychain; see tools/agent-scripts/README.md):
+```bash
+~/.glancekit/bin/gk-run build|widget-test|play-check|backend-logs [hours]
+~/.glancekit/bin/gk-status <run-id> --wait      # or: gk-status latest build.yml
+~/.glancekit/bin/gk-logs [hours]                # People error reports
+~/.glancekit/bin/gk-release alpha [--no-play]   # asks first
+~/.glancekit/bin/gk-deploy [all|rules|functions]  # asks first
+~/.glancekit/bin/gk-push                        # asks first
+```
 CI: `build.yml` builds every push and PR. Backend deploys and releases are manual workflows
 (see dev-docs/release.md). There is no local Firebase deploy step in normal work.
 
@@ -60,6 +69,8 @@ CI: `build.yml` builds every push and PR. Backend deploys and releases are manua
    `CHANGELOG.md` entry; releases are cut by the release workflow.
 8. **Secrets:** never commit keystores (other than the debug one), service-account JSON,
    tokens or passwords. `app/google-services.json` is public config and is meant to be committed.
+   Agents never read keys: use the scripts in `~/.glancekit/bin` (see
+   [tools/agent-scripts/README.md](tools/agent-scripts/README.md)) to run workflows and push.
 
 ## Style
 - Kotlin, 4-space indent, short functions, comments that explain *why*.

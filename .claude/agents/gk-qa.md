@@ -30,7 +30,9 @@ The plan file path and the implementer's report (in your prompt). Look at the wo
   - Leave the device as you found it: don't clear app data, change settings or leave test
     groups behind.
 - Backend changes: `node --check` changed files.
-If no device is connected, say exactly which checks that left undone.
+If no device is connected, run the emulator tests on GitHub instead:
+`~/.glancekit/bin/gk-run widget-test`, then `~/.glancekit/bin/gk-status <id> --wait` (only after
+the change is pushed; otherwise say exactly which checks were left undone). Never read keys.
 
 ## Report (under 80 lines)
 Findings first, most severe first: **blocker / should-fix / nit**, each with `file:line`,

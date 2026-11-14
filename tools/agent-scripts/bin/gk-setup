@@ -1,0 +1,10 @@
+#!/bin/bash
+# Store a key in the macOS Keychain. Run this yourself, in Terminal; it asks for the key without showing it.
+# Usage: gk-setup [NAME]   (default: github-token)
+set -euo pipefail
+name="${1:-github-token}"
+[[ "$name" =~ ^[a-z0-9-]+$ ]] || { echo "Name: lower-case letters, digits and -"; exit 1; }
+[ -t 0 ] || { echo "Run gk-setup yourself in Terminal, not through an agent."; exit 1; }
+echo "Paste the value for glancekit.$name and press Enter (it won't be shown):"
+/usr/bin/security add-generic-password -U -a "$USER" -s "glancekit.$name" -l "Glance Kit $name" -w
+echo "Saved to your Keychain as glancekit.$name."

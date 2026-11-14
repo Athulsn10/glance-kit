@@ -1,0 +1,13 @@
+#!/bin/bash
+# Deploy the Firebase backend (validates the push message first).
+# Usage: gk-deploy [all|rules|functions]
+source "$(dirname "$0")/gk-common.sh"
+case "${1:-all}" in
+  all) only="firestore:rules,functions" ;;
+  rules) only="firestore:rules" ;;
+  functions) only="functions" ;;
+  *) gk_die "Usage: gk-deploy [all|rules|functions]" ;;
+esac
+id="$(gk_dispatch backend.yml "{\"only\":\"$only\"}")"
+echo "Deploy started ($only): run $id"
+echo "Follow it with: ~/.glancekit/bin/gk-status $id --wait"

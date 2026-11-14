@@ -1,0 +1,21 @@
+#!/bin/bash
+# Show a workflow run's result, with its errors and notices once it has finished.
+# Usage: gk-status RUN_ID [--wait [SECONDS]]
+#        gk-status latest WORKFLOW_FILE [--wait [SECONDS]]
+source "$(dirname "$0")/gk-common.sh"
+id="${1:-}"
+if [ "$id" = "latest" ]; then
+  wf="${2:-}"; [[ "$wf" =~ ^[a-z0-9-]+\.yml$ ]] || gk_die "Usage: gk-status latest WORKFLOW_FILE"
+  id="$(gk_api GET "/actions/workflows/$wf/runs?per_page=1" | gk_json "r=d.get('workflow_runs',[]); print(r[0]['id'] if r else '')")"
+  [ -n "$id" ] || gk_die "No runs of $wf yet."
+  shift 2
+else
+  [[ "$id" =~ ^[0-9]+$ ]] || gk_die "Usage: gk-status RUN_ID [--wait [SECONDS]]"
+  shift
+fi
+if [ "${1:-}" = "--wait" ]; then
+  secs="${2:-100}"; [[ "$secs" =~ ^[0-9]+$ ]] || secs=100
+  gk_wait "$id" "$secs"
+else
+  gk_report "$id"
+fi

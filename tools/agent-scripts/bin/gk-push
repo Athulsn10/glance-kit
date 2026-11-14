@@ -1,0 +1,9 @@
+#!/bin/bash
+# Push the current branch to GitHub using the Keychain token (never shown).
+# Usage: gk-push [BRANCH]   (default: the current branch)
+source "$(dirname "$0")/gk-common.sh"
+branch="${1:-$(git rev-parse --abbrev-ref HEAD)}"
+[[ "$branch" =~ ^[A-Za-z0-9._/-]+$ ]] || gk_die "Odd branch name: $branch"
+# git asks gk-askpass for the credentials, so the token is never on a command line.
+GIT_ASKPASS="$GK_BIN/gk-askpass" GIT_TERMINAL_PROMPT=0 \
+  git -c credential.helper= push "https://github.com/$GK_REPO.git" "HEAD:refs/heads/$branch" 2>&1 | gk_mask

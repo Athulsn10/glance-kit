@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/.glancekit/bin/gk-run:*)",
+      "Bash(~/.glancekit/bin/gk-status:*)",
+      "Bash(~/.glancekit/bin/gk-logs:*)"
+    ],
+    "ask": [
+      "Bash(~/.glancekit/bin/gk-release:*)",
+      "Bash(~/.glancekit/bin/gk-deploy:*)",
+      "Bash(~/.glancekit/bin/gk-push:*)"
+    ],
+    "deny": [
+      "Read(~/.glancekit/**)",
+      "Edit(~/.glancekit/**)",
+      "Write(~/.glancekit/**)",
+      "Bash(~/.glancekit/bin/gk-setup:*)",
+      "Bash(~/.glancekit/bin/gk-askpass:*)",
+      "Bash(security find-generic-password:*)",
+      "Bash(security find-internet-password:*)",
+      "Bash(security dump-keychain:*)",
+      "Bash(security export:*)",
+      "Bash(/usr/bin/security:*)",
+      "Read(./context/credentials.md)",
+      "Edit(./context/credentials.md)",
+      "Read(~/.secrets/**)",
+      "Read(./**/*.jks)",
+      "Read(./**/keystore.properties)",
+      "Read(./**/*service-account*.json)"
+    ]
+  }
+}

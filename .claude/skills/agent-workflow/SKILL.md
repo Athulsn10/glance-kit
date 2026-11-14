@@ -45,10 +45,13 @@ In this shape: what was built; QA findings and what was fixed; exact check resul
 limits; what to test on a phone. Then ask: **"Commit and push to main?"** and stop.
 
 ## 7. Commit and push (only when the owner says yes)
-- One commit on `main` with a clear summary line (and short body if useful), then
-  `git push origin main`. Do this inline; don't spawn an agent for git.
+- One commit on `main` with a clear summary line (and short body if useful), then push with
+  `git push origin main` (or `~/.glancekit/bin/gk-push` if git has no credentials). Do this
+  inline; don't spawn an agent for git. Confirm the build with
+  `~/.glancekit/bin/gk-status latest build.yml --wait`.
 - Don't bump the version, release, or deploy the backend unless the owner asks. When they do,
-  follow `dev-docs/release.md` (release and backend deploys run as GitHub workflows).
+  use `~/.glancekit/bin/gk-release <track>` or `gk-deploy` (they ask for approval) and follow
+  `dev-docs/release.md`. Never read or ask for keys.
 
 ## When to skip the loop
 For a one-file or one-line change, do it yourself and still run `./gradlew assembleDebug`;

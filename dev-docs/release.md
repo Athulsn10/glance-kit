@@ -17,6 +17,9 @@ workflow uses that section as GitHub release notes. Play "What's new":
 | `play-check.yml` | manual | List Play tracks and versions |
 | `widget-test.yml` | manual | Emulator widget tests |
 
+From a coding agent, run them with the scripts in `tools/agent-scripts/` (`gk-release`,
+`gk-deploy`, `gk-run`, `gk-status`), which keep the GitHub token in the macOS Keychain.
+
 Release and backend workflows need repository secrets (upload key, Play service account,
 Firebase deploy service account). They're not available to forks; contributors only need
 `build.yml`.

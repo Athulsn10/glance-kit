@@ -1,0 +1,8 @@
+#!/bin/bash
+# Used by git (through GIT_ASKPASS) inside gk-push. Not for direct use.
+source "$(dirname "$0")/gk-common.sh"
+case "${1:-}" in
+  Username*) echo "x-access-token" ;;
+  Password*) gk_secret github-token ;;
+  *) exit 1 ;;
+esac

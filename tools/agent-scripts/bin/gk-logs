@@ -1,0 +1,8 @@
+#!/bin/bash
+# Run the Backend logs workflow and print the error reports and group status.
+# Usage: gk-logs [HOURS]
+source "$(dirname "$0")/gk-common.sh"
+h="${1:-24}"; [[ "$h" =~ ^[0-9]{1,3}$ ]] || gk_die "Usage: gk-logs [HOURS]"
+id="$(gk_dispatch backend-logs.yml "{\"hours\":\"$h\"}")"
+echo "Reading logs from the last $h h (run $id)..."
+gk_wait "$id" 110
