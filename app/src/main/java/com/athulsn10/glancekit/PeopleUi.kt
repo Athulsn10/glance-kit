@@ -57,7 +57,7 @@ class AvatarView(ctx: Context) : View(ctx) {
         val now = SystemClock.uptimeMillis()
         val bob = if (animate) sin(now / 400.0).toFloat() * s * 0.03f else 0f
         val blink = animate && (now % 3800L) < 140L
-        AvatarArt.draw(canvas, width / 2f, height * 0.4f + bob, s, avatar, mood, arms, blink = blink)
+        synchronized(AvatarArt.DRAW_LOCK) { AvatarArt.draw(canvas, width / 2f, height * 0.4f + bob, s, avatar, mood, arms, blink = blink) }
     }
 }
 

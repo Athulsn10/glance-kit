@@ -148,12 +148,15 @@ object PeopleArt {
     fun pair(
         c: Canvas, w: Float, h: Float, density: Float, t: Float,
         circle: Circle, scene: Scene, me: Person?, other: Person?, meName: String = "You",
-        action: PeopleAction? = null, traveller: Boolean = true, live: Live? = null,
+        action: PeopleAction? = null, traveller: Boolean = true, live: Live? = null, still: Boolean = false,
     ) {
         val head = headSize(w, h)
         val gy = h * 0.36f
-        val bob = sin(t * 2 * PI).toFloat() * head * 0.055f
-        val bob2 = sin(t * 2 * PI + 1.4).toFloat() * head * 0.055f
+        // [still]: the widget's frames are cross-faded by the launcher, and a face drawn in two
+        // slightly different places fades into a blurry double. So there the avatars hold still
+        // and only the small things (hearts, the symbol's pulse, a blink) change between frames.
+        val bob = if (still) 0f else sin(t * 2 * PI).toFloat() * head * 0.055f
+        val bob2 = if (still) 0f else sin(t * 2 * PI + 1.4).toFloat() * head * 0.055f
         val ac = circle.accent
         val (moodMe, moodThem) = People.moods(circle, scene, me, other)
         val avMe = me?.avatar ?: Avatar()
@@ -224,7 +227,7 @@ object PeopleArt {
             }
             Scene.RECEIVED -> {
                 xa = w / 2 - w * 0.2f; xb = w / 2 + w * 0.2f
-                val wig = sin(t * 2 * PI * 4).toFloat() * head * 0.07f
+                val wig = if (still) 0f else sin(t * 2 * PI * 4).toFloat() * head * 0.07f
                 val key = action?.key
                 // How each of us looks for what just arrived. A mood set for today still wins.
                 val mine = me?.moodNow() ?: when (key) {
@@ -291,7 +294,7 @@ object PeopleArt {
     }
 
     /** Family: a row of up to five members, each with "home" or their distance from you. */
-    fun family(c: Canvas, w: Float, h: Float, density: Float, t: Float, circle: Circle, g: Group, me: Person?, others: List<Person>) {
+    fun family(c: Canvas, w: Float, h: Float, density: Float, t: Float, circle: Circle, g: Group, me: Person?, others: List<Person>, still: Boolean = false) {
         val everyone = listOfNotNull(me) + others.take(4)
         val n = everyone.size.coerceAtLeast(1)
         val head = min(h * 0.38f, w / n * 0.62f)
@@ -299,7 +302,7 @@ object PeopleArt {
         val now = System.currentTimeMillis()
         everyone.forEachIndexed { i, person ->
             val x = w * (i + 0.5f) / n
-            val b = sin(t * 2 * PI + i).toFloat() * head * 0.05f
+            val b = if (still) 0f else sin(t * 2 * PI + i).toFloat() * head * 0.05f
             val received = g.lastFrom == person.uid && now - g.lastAt < People.RECEIVED_MS
             val mood = person.moodNow() ?: when {
                 received -> Mood.LOVE
@@ -345,13 +348,13 @@ object PeopleArt {
     /** Draw whichever scene fits the group. */
     fun drawGroup(
         c: Canvas, w: Float, h: Float, density: Float, t: Float, g: Group, me: Person?, others: List<Person>,
-        traveller: Boolean = true, live: Live? = null,
+        traveller: Boolean = true, live: Live? = null, still: Boolean = false,
     ) {
-        if (g.circle == Circle.FAMILY) family(c, w, h, density, t, g.circle, g, me, others)
+        if (g.circle == Circle.FAMILY) family(c, w, h, density, t, g.circle, g, me, others, still)
         else {
             val other = others.firstOrNull()
             pair(c, w, h, density, t, g.circle, People.scene(g, me, other), me, other,
-                action = g.circle.action(g.lastAction), traveller = traveller, live = live)
+                action = g.circle.action(g.lastAction), traveller = traveller, live = live, still = still)
         }
     }
 
@@ -367,11 +370,18 @@ object PeopleArt {
         val w = (wDp * scale).toInt().coerceAtLeast(60)
         val h = (hDp * scale).toInt().coerceAtLeast(40)
         val count = min(n, (FRAME_BUDGET / (w * h * 2)).coerceAtLeast(3))
-        return (0 until count).map { i ->
-            val b = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
-            b.eraseColor(RingRenderer.BG)
-            drawGroup(Canvas(b), w.toFloat(), h.toFloat(), scale, i / count.toFloat(), g, me, others, traveller = false)
-            b
+        // The drawing code shares its paints and paths, and the app draws avatars on the main
+        // thread while this runs in the background: take turns, or a frame comes out garbled.
+        return synchronized(AvatarArt.DRAW_LOCK) {
+            (0 until count).map { i ->
+                val b = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
+                b.eraseColor(RingRenderer.BG)
+                // One frame where I blink and one where they do; the first frame never blinks
+                // (it's also the widget's fingerprint, so it has to come out the same every time).
+                val live = when (i) { 2 -> Live(clock = 0L); 4 -> Live(clock = 2600L); else -> null }
+                drawGroup(Canvas(b), w.toFloat(), h.toFloat(), scale, i / count.toFloat(), g, me, others, traveller = false, live = live, still = true)
+                b
+            }
         }
     }
 
@@ -393,8 +403,10 @@ object PeopleArt {
         val size = (tr.head * 0.9f).toInt().coerceAtLeast(12)
         val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val c = Canvas(b)
-        glow(c, size / 2f, size / 2f, tr.head * 0.26f, g.circle.accent, 130)
-        symbol(c, travellerKind(g.circle), size / 2f, size / 2f, tr.head * 0.32f, g.circle.accent)
+        synchronized(AvatarArt.DRAW_LOCK) {
+            glow(c, size / 2f, size / 2f, tr.head * 0.26f, g.circle.accent, 130)
+            symbol(c, travellerKind(g.circle), size / 2f, size / 2f, tr.head * 0.32f, g.circle.accent)
+        }
         return Fly(b, size / scale, (tr.x1 - tr.x0) / scale, (h / 2 - tr.y) / scale, tr.sway)
     }
 }
@@ -447,6 +459,8 @@ class PeopleSceneView(ctx: Context) : View(ctx) {
         val now = SystemClock.uptimeMillis()
         val t = (now % 2400L) / 2400f
         val live = PeopleArt.Live(now, tapSide, ((now - tapAt) / 900f).coerceIn(0f, 1f))
-        PeopleArt.drawGroup(canvas, width.toFloat(), height.toFloat(), resources.displayMetrics.density, t, g, me, others, live = live)
+        synchronized(AvatarArt.DRAW_LOCK) {
+            PeopleArt.drawGroup(canvas, width.toFloat(), height.toFloat(), resources.displayMetrics.density, t, g, me, others, live = live)
+        }
     }
 }

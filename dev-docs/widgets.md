@@ -48,6 +48,13 @@ redraws; so does anything older than 3 hours. The fly flipper's first child is e
 purpose: a flipper shows its first child without animating it after a redraw, which used to
 leave a heart sitting still at the start of the line.
 
+Frames are drawn with `still = true`: avatars sit in exactly the same place in every frame
+(cross-fading a face between two positions shows as a blurry double) and only small things
+differ: one frame where you blink, one where they do, hearts, a symbol's pulse.
+`onAppWidgetOptionsChanged` must not force a redraw: launchers send it on every layout pass.
+Drawing takes `AvatarArt.DRAW_LOCK`, because the paints and paths are shared with the app's UI
+thread and the fingerprint needs frames to come out identical.
+
 Don't draw anything that should move far into the frames: a handful of frames can only step.
 An animation can't be changed from code (only picked by layout), which is why there are two
 flippers and why the trip length is set through the flipper's width.

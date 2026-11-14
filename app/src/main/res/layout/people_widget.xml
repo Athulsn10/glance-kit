@@ -61,7 +61,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:autoStart="true"
-            android:flipInterval="400"
+            android:flipInterval="500"
             android:inAnimation="@anim/people_frame_in"
             android:outAnimation="@anim/people_frame_hold" />
 

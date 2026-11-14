@@ -155,6 +155,12 @@ object AvatarArt {
         "Dreamy" to Avatar("f", 2, 8, "bob", "tee", 4, setOf("flower")),
     )
 
+    /**
+     * Held while drawing avatars or scenes. The paints and paths here are shared, so drawing
+     * from two threads at once (the app's screen and a widget refresh) would mix them up.
+     */
+    val DRAW_LOCK = Any()
+
     private const val INK = 0xFF342222.toInt()
     private const val MOUTH = 0xFFB0404C.toInt()
     private const val TONGUE = 0xFFFF8C96.toInt()

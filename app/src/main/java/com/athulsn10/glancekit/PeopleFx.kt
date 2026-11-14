@@ -625,7 +625,7 @@ class PeopleFxOverlay(ctx: Context, private val spec: PeopleFx.Spec) : View(ctx)
         val p = ((SystemClock.uptimeMillis() - start) / total.toFloat()).coerceIn(0f, 1f)
         canvas.save()
         canvas.translate(PeopleFx.shake(p, spec) * resources.displayMetrics.density, 0f)
-        PeopleFx.draw(canvas, width.toFloat(), height.toFloat(), resources.displayMetrics.density, p, spec)
+        synchronized(AvatarArt.DRAW_LOCK) { PeopleFx.draw(canvas, width.toFloat(), height.toFloat(), resources.displayMetrics.density, p, spec) }
         canvas.restore()
     }
 

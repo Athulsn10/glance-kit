@@ -3,6 +3,19 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.22.1] - 2026-11-14
+
+### Fixed
+- People widget: the avatars no longer shimmer or look doubled. The widget fades between a few
+  pictures, and the avatars used to be drawn bobbing in a slightly different place in each, so
+  every fade blurred their faces. They now hold still; a blink and the travelling heart are
+  what move.
+- People widget: the heart no longer restarts part-way across when you come back to the home
+  screen. The launcher reports the widget's size again each time, and that was treated as a
+  resize and redrawn from scratch.
+- Avatars are drawn by one thread at a time, so a widget refresh while the People tab is open
+  can't garble a frame.
+
 ## [1.22.0] - 2026-11-14
 
 ### Changed

@@ -54,7 +54,10 @@ class PeopleWidget : AppWidgetProvider() {
     }
 
     override fun onAppWidgetOptionsChanged(context: Context, manager: AppWidgetManager, id: Int, options: Bundle) {
-        inBackground { PeopleViews.update(context, force = true) }
+        // Not forced: the launcher sends this whenever it lays the widget out again (e.g. each
+        // time you come back to the home screen), not only on a real resize, and a forced redraw
+        // restarted the animation every time. A new size changes the fingerprint anyway.
+        inBackground { PeopleViews.update(context) }
     }
 
     override fun onDeleted(context: Context, ids: IntArray) {
