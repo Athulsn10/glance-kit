@@ -426,12 +426,19 @@ object PeopleRepo {
     }
 
     /** Note an action that just arrived (from a push), so the widget can show it right away. */
-    fun noteReceived(c: Context, groupId: String, from: String, action: String) {
-        val list = cached(c).map {
-            if (it.group.id == groupId) it.copy(group = it.group.copy(lastFrom = from, lastAction = action, lastAt = System.currentTimeMillis())) else it
-        }
-        saveGroups(c, list)
-        PeopleHistory.note(c, groupId, from, action) // so we can tell when one of ours is returned
+    /**
+     * Note an action that just arrived by push. [at] is the server's send time. If the live
+     * listener already brought the same action (stamped by the cloud a moment before the push
+     * left), keep that copy, so the moment isn't played twice.
+     */
+    fun noteReceived(c: Context, groupId: String, from: String, action: String, at: Long = System.currentTimeMillis()) {
+        val all = cached(c)
+        val g = all.firstOrNull { it.group.id == groupId }?.group
+        if (g != null && g.lastFrom == from && g.lastAction == action && at - g.lastAt in 0L until 3_000L) return
+        saveGroups(c, all.map {
+            if (it.group.id == groupId) it.copy(group = it.group.copy(lastFrom = from, lastAction = action, lastAt = at)) else it
+        })
+        PeopleHistory.note(c, groupId, from, action, at) // so we can tell when one of ours is returned
     }
 
     /** The group the widget shows: the one picked in the app, or the first. */

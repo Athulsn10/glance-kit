@@ -657,21 +657,36 @@ class PeopleFxOverlay(ctx: Context, private val spec: PeopleFx.Spec) : View(ctx)
          * If the latest action in [g] came from someone else and hasn't been played on this phone
          * yet, play it now. Called when the group's scene comes on screen.
          */
-        fun playIncoming(view: View, g: Group, me: Person, others: List<Person>) {
+        /**
+         * Plays the latest action in [g] if it came from someone else and hasn't been played on
+         * this phone yet. Returns false only when it should be tried again shortly (another
+         * moment is still playing); true when it played or there was nothing to play.
+         */
+        fun playIncoming(view: View, g: Group, me: Person, others: List<Person>): Boolean {
             val c = view.context
-            val from = g.lastFrom ?: return
-            if (from == me.uid) return
-            val action = g.circle.action(g.lastAction) ?: return
-            if (System.currentTimeMillis() - g.lastAt > People.RECEIVED_MS) return
-            // The same action shows up twice, a few seconds apart (push, then the cloud copy).
-            if (g.lastAt <= PeopleHistory.seen(c, g.id) + 10_000) return
-            val sender = others.firstOrNull { it.uid == from } ?: return
-            val act = activity(c) ?: return
+            val from = g.lastFrom ?: return true
+            if (from == me.uid) return true
+            val action = g.circle.action(g.lastAction) ?: return true
+            if (System.currentTimeMillis() - g.lastAt > People.RECEIVED_MS) return true
+            // Each action has its own time from the server, so an exact check is enough. The
+            // push and the cloud copy of one action carry the same time (see noteReceived),
+            // while a second hug a few seconds later is newer and plays again.
+            if (g.lastAt <= PeopleHistory.seen(c, g.id)) return true
+            val sender = others.firstOrNull { it.uid == from } ?: return true
+            val act = activity(c) ?: return true
+            if (act.isFinishing || act.isDestroyed) return true
+            if (busy(act)) return false
             PeopleHistory.note(c, g.id, from, action.key, g.lastAt)
             val returned = PeopleHistory.returned(c, g.id, from, action.key, g.lastAt)
-            if (play(act, PeopleFx.Spec(g.circle, action, me.avatar, sender.avatar, sender.name, sentByMe = false, returned = returned))) {
-                PeopleHistory.markSeen(c, g.id, g.lastAt)
-            }
+            val ok = runCatching {
+                play(act, PeopleFx.Spec(g.circle, action, me.avatar, sender.avatar, sender.name, sentByMe = false, returned = returned))
+            }.getOrDefault(false)
+            // Mark it seen even if it couldn't play (animations off), so it isn't retried forever.
+            PeopleHistory.markSeen(c, g.id, g.lastAt)
+            return ok || !busy(act)
         }
+
+        private fun busy(act: Activity) =
+            (act.window?.decorView as? ViewGroup)?.findViewWithTag<View>(TAG) != null
     }
 }

@@ -3,6 +3,20 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.22.2] - 2026-11-14
+
+### Fixed
+- The app no longer freezes or crashes when a hug or poke arrives. Several widget redraws used to
+  start at once (the push, the live update and the background sync) and the screen waited for
+  all of them. Widget drawing now happens on one background thread, one redraw at a time.
+- The full-screen moment plays again when the same action arrives a second time. Each action
+  now keeps the server's time instead of this phone's clock, repeats aren't mistaken for
+  duplicates, and one that arrives while another is playing waits its turn.
+
+### Added
+- Crashes and freezes are now reported (code location only, no personal data) and show up in
+  Backend logs, so the next one can be fixed from the logs.
+
 ## [1.22.1] - 2026-11-14
 
 ### Fixed

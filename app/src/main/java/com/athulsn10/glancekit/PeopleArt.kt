@@ -372,16 +372,17 @@ object PeopleArt {
         val count = min(n, (FRAME_BUDGET / (w * h * 2)).coerceAtLeast(3))
         // The drawing code shares its paints and paths, and the app draws avatars on the main
         // thread while this runs in the background: take turns, or a frame comes out garbled.
-        return synchronized(AvatarArt.DRAW_LOCK) {
-            (0 until count).map { i ->
-                val b = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
-                b.eraseColor(RingRenderer.BG)
-                // One frame where I blink and one where they do; the first frame never blinks
-                // (it's also the widget's fingerprint, so it has to come out the same every time).
-                val live = when (i) { 2 -> Live(clock = 0L); 4 -> Live(clock = 2600L); else -> null }
+        // The lock is taken per frame, so the app's own scene (main thread) waits one frame at most.
+        return (0 until count).map { i ->
+            val b = Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
+            b.eraseColor(RingRenderer.BG)
+            // One frame where I blink and one where they do; the first frame never blinks
+            // (it's also the widget's fingerprint, so it has to come out the same every time).
+            val live = when (i) { 2 -> Live(clock = 0L); 4 -> Live(clock = 2600L); else -> null }
+            synchronized(AvatarArt.DRAW_LOCK) {
                 drawGroup(Canvas(b), w.toFloat(), h.toFloat(), scale, i / count.toFloat(), g, me, others, traveller = false, live = live, still = true)
-                b
             }
+            b
         }
     }
 
@@ -419,7 +420,7 @@ class PeopleSceneView(ctx: Context) : View(ctx) {
     private val vis = android.graphics.Rect()
     private var tapSide = 0
     private var tapAt = 0L
-    private var checked = false
+    private var checkedAt = -1L // the action time last handed to the full-screen moment
 
     private val tick = object : Runnable {
         override fun run() {
@@ -427,11 +428,12 @@ class PeopleSceneView(ctx: Context) : View(ctx) {
                 invalidate()
                 // Something arrived that hasn't been played on this phone yet: play it once, full
                 // screen, the first time this scene is really on screen (not a neighbouring tab).
-                if (!checked && vis.width() > width / 2) {
-                    checked = true
-                    val g = group
-                    val m = me
-                    if (g != null && m != null) PeopleFxOverlay.playIncoming(this@PeopleSceneView, g, m, others)
+                val g = group
+                val m = me
+                if (g != null && m != null && g.lastAt != checkedAt && vis.width() > width / 2) {
+                    // A newer action than the last one handled (this view is reused when the
+                    // group updates): play it. If a moment is still playing, try again next tick.
+                    if (PeopleFxOverlay.playIncoming(this@PeopleSceneView, g, m, others)) checkedAt = g.lastAt
                 }
             }
             postDelayed(this, if (isShown) 16L else 1000L)

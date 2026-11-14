@@ -39,8 +39,10 @@ import java.util.concurrent.TimeUnit
 class GlanceApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        runCatching { PeopleLog.installCrashHandler(this) }
         runCatching { PeopleRepo.init(this) }
         runCatching { PeopleMessaging.channels(this) }
+        runCatching { PeopleLog.reportExits(this) } // last crash or freeze, if any, goes into the logs
     }
 }
 
@@ -49,7 +51,7 @@ class PeopleWidget : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
         // The system asks after a restart, an app update or a new widget: draw it all.
-        inBackground { PeopleViews.update(context, force = true) }
+        inBackground { PeopleViews.updateAndWait(context, force = true) }
         PeopleSync.schedule(context)
     }
 
@@ -57,7 +59,7 @@ class PeopleWidget : AppWidgetProvider() {
         // Not forced: the launcher sends this whenever it lays the widget out again (e.g. each
         // time you come back to the home screen), not only on a real resize, and a forced redraw
         // restarted the animation every time. A new size changes the fingerprint anyway.
-        inBackground { PeopleViews.update(context) }
+        inBackground { PeopleViews.updateAndWait(context) }
     }
 
     override fun onDeleted(context: Context, ids: IntArray) {
@@ -72,7 +74,7 @@ class PeopleWidget : AppWidgetProvider() {
         super.onReceive(context, intent)
         if (intent.action == ACTION_NEXT) {
             // The title was tapped: show the next group.
-            inBackground { PeopleRepo.nextWidgetGroup(context); PeopleViews.update(context) }
+            inBackground { PeopleRepo.nextWidgetGroup(context); PeopleViews.updateAndWait(context) }
             return
         }
         if (intent.action != ACTION_SEND) return
@@ -113,8 +115,34 @@ object PeopleViews {
      * charging...), and a full redraw restarts the launcher's animation, so unless [force] is
      * set or the picture really changed, only the words are updated.
      */
-    @Synchronized
+    // All widget drawing happens on this one thread, one update at a time. Callers on the main
+    // thread used to wait here while another update drew, which froze or crashed the app when
+    // an action arrived (the push, the live listener and the sync all redraw at once).
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "people-widget").apply { isDaemon = true } }
+    private val queued = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var queuedForce = false
+
+    /** Redraw soon, without blocking. Several requests close together become one redraw. */
     fun update(c: Context, force: Boolean = false) {
+        val app = c.applicationContext
+        if (force) queuedForce = true
+        if (!queued.compareAndSet(false, true)) return
+        worker.execute {
+            queued.set(false)
+            val f = queuedForce; queuedForce = false
+            runCatching { updateNow(app, f) }.onFailure { android.util.Log.w("GlanceKit", "People widget update failed", it) }
+        }
+    }
+
+    /** Redraw and wait for it (up to 20 s). Only from background work that must finish first. */
+    fun updateAndWait(c: Context, force: Boolean = false) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) { update(c, force); return }
+        val app = c.applicationContext
+        runCatching { worker.submit(java.util.concurrent.Callable { updateNow(app, force) }).get(20, java.util.concurrent.TimeUnit.SECONDS) }
+            .onFailure { android.util.Log.w("GlanceKit", "People widget update failed", it) }
+    }
+
+    private fun updateNow(c: Context, force: Boolean) {
         val mgr = AppWidgetManager.getInstance(c)
         val p = Store.prefs(c)
         for (id in ids(c)) {
@@ -312,10 +340,10 @@ class PeopleSync(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, 
         if (!PeopleRepo.init(c)) return Result.success()
         PeopleLog.flush(c)
         val groups = PeopleRepo.refresh(c)
-        if (groups.isEmpty()) { PeopleViews.update(c); return Result.success() }
+        if (groups.isEmpty()) { PeopleViews.updateAndWait(c); return Result.success() }
         val loc = if (PeopleRepo.paused(c)) null else PeopleRepo.locate(c)
         PeopleRepo.pushProfile(c, groups.map { it.group.id }, loc)
-        PeopleViews.update(c)
+        PeopleViews.updateAndWait(c)
         return Result.success()
     }
 
@@ -456,7 +484,7 @@ class PeopleMessaging : FirebaseMessagingService() {
         if (d["type"] == "sync") {
             // Someone joined or left: refetch now so the widget and app don't wait for the next sync.
             runBlocking { withTimeoutOrNull(8_000) { runCatching { PeopleRepo.refresh(this@PeopleMessaging) } } }
-            PeopleViews.update(this)
+            PeopleViews.updateAndWait(this)
             val who = d["fromName"]?.ifBlank { null } ?: "Someone"
             when (d["event"]) {
                 "left" -> update("$who left your group", "You're no longer sharing with them.")
@@ -480,8 +508,9 @@ class PeopleMessaging : FirebaseMessagingService() {
         PeopleLog.info(this, "received ${action.key}", "app open, priority ${msg.priority}/${msg.originalPriority}, notifications $shown, " +
             "vibrator ${PeopleSync.canVibrate(this)}, ringer ${PeopleSync.ringer(this)}, ${System.currentTimeMillis() - msg.sentTime} ms after sending")
         if (d["test"] == "1") return
-        PeopleRepo.noteReceived(this, gid, from, action.key)
-        PeopleViews.update(this)
+        // The server's send time, not this phone's clock (which can be off by seconds or more).
+        PeopleRepo.noteReceived(this, gid, from, action.key, if (msg.sentTime > 0) msg.sentTime else System.currentTimeMillis())
+        PeopleViews.updateAndWait(this)
         PeopleSync.now(this) // fetch their latest place too
     }
 
