@@ -31,6 +31,21 @@ All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 - People widget: the heart (or plane) between you no longer jumps between three positions and
   stops half way. It now glides the whole way across, and the avatars bob smoothly.
 
+## [1.20.9] - 2026-11-14
+
+### Added
+
+- Full-screen animations for every action, played on both sending and receiving. Avatars act out each interaction, with effects such as hearts, confetti and screen shake. Tap to skip.
+- **Returned:** Sending the same action back within 30 minutes triggers a bigger animation on both phones, and the widget displays a label such as `HUG RETURNED`.
+- Partner actions expanded to include Love you, High five, Poke, Hang out?, Call me and Home safe. Friends and Family actions remain unchanged.
+- Tapping an avatar on the People tab makes it hop and laugh. Avatars also blink.
+
+### Changed
+
+- Each action button now has its own colour, with three buttons per row.
+- Avatar extras are limited to one per spot. Selecting another item replaces the existing one instead of stacking. Previously saved avatars with multiple extras in the same spot are automatically trimmed.
+- The People widget heart now moves as its own layer across the full distance, while avatars cross-fade smoothly.
+
 ## [1.20.8] - 2026-11-09
 
 ### Fixed
