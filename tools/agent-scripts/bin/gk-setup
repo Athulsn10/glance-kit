@@ -2,8 +2,15 @@
 # Store a key in the macOS Keychain. Run this yourself, in Terminal; it asks for the key without showing it.
 # Usage: gk-setup [NAME]   (default: github-token)
 set -euo pipefail
+export LC_ALL=C
 name="${1:-github-token}"
-[[ "$name" =~ ^[a-z0-9-]+$ ]] || { echo "Name: lower-case letters, digits and -"; exit 1; }
+name="$(printf '%s' "$name" | tr -d '[:space:]')"
+case "$name" in
+  ""|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*)
+    echo "Name \"$name\" can only use lower-case letters, digits and an ordinary hyphen (-)."
+    echo "Tip: type the command instead of pasting it, or just run: ~/.glancekit/bin/gk-setup"
+    exit 1 ;;
+esac
 [ -t 0 ] || { echo "Run gk-setup yourself in Terminal, not through an agent."; exit 1; }
 echo "Paste the value for glancekit.$name and press Enter (it won't be shown):"
 /usr/bin/security add-generic-password -U -a "$USER" -s "glancekit.$name" -l "Glance Kit $name" -w

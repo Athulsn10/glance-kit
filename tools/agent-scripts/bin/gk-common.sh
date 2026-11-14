@@ -1,6 +1,7 @@
 # Shared helpers for the Glance Kit agent scripts. Sourced, not run.
 # Keys come from the macOS Keychain (service "glancekit.<name>") and are never printed.
 set -euo pipefail
+export LC_ALL=C
 
 GK_REPO="Athulsn10/glance-kit"
 GK_API="https://api.github.com/repos/$GK_REPO"
