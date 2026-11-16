@@ -63,4 +63,18 @@
         <item name="android:paddingEnd">14dp</item>
         <item name="android:textSize">13sp</item>
     </style>
+    <!-- Small caption under a clock-widget dial. -->
+    <style name="ClockCaption">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">5dp</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:shadowColor">#59000000</item>
+        <item name="android:shadowDy">1</item>
+        <item name="android:shadowRadius">6</item>
+        <item name="android:textColor">#D9FFFFFF</item>
+        <item name="android:textSize">11dp</item>
+    </style>
 </resources>

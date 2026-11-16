@@ -3,6 +3,17 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.23.0] - 2026-11-16
+
+### Changed
+- Clock widget redesign. It now sits straight on the wallpaper with no card, like the phone's own
+  clock, with a much bigger time in a new font (Outfit). Under it are four round dials: the sun
+  in its real colour (or tonight's moon in its real phase, with clouds or rain when there are
+  any), with a ring showing how much of the day or night has gone and the next sunset or
+  sunrise; the temperature on a gauge from today's low to high; air quality; and the next alarm.
+- On a light wallpaper the text turns dark so it stays readable.
+- The time and dials size themselves to the widget; on a short widget only the date and time show.
+
 ## [1.22.2] - 2026-11-14
 
 ### Fixed

@@ -2,6 +2,8 @@ package com.athulsn10.glancekit
 
 import android.app.AlarmManager
 import android.app.PendingIntent
+import android.app.WallpaperColors
+import android.app.WallpaperManager
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
@@ -19,6 +21,8 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import android.os.Bundle
 import android.provider.AlarmClock
+import android.util.TypedValue
+import android.view.View
 import android.widget.RemoteViews
 import java.time.LocalDate
 import java.time.LocalTime
@@ -31,8 +35,9 @@ import kotlin.math.max
 import kotlin.math.sin
 
 /**
- * Clock widget: the time (ticks by itself, no updates needed), date, next alarm, the sun or the
- * moon as it looks right now, and today's sun path with sunrise and sunset on it.
+ * Clock widget (1.23 redesign): straight on the wallpaper, no card. Date, a big time (ticks by
+ * itself), and four dials: the sun or moon as it looks right now, temperature, air quality and
+ * the next alarm. The all-in-one widget's Clock page keeps the older layout with the sun path.
  * The sun's colour follows its height: deep red at the horizon, orange, then pale yellow at midday.
  */
 class ClockWidget : AppWidgetProvider() {
@@ -65,17 +70,132 @@ object ClockViews {
         Place.ensureLoaded(c)
         val mgr = AppWidgetManager.getInstance(c)
         for (id in ids(c)) {
-            val w = mgr.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 280)
-            runCatching { mgr.updateAppWidget(id, views(c, w.toFloat())) }
+            val o = mgr.getAppWidgetOptions(id)
+            // Portrait size: the narrowest width and the tallest height the launcher gives us.
+            val w = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0).takeIf { it > 0 } ?: 300
+            val h = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0).takeIf { it > 0 } ?: 200
+            runCatching { mgr.updateAppWidget(id, views(c, w.toFloat(), h.toFloat())) }
                 .onFailure { android.util.Log.w("GlanceKit", "Couldn't update clock widget", it) }
         }
     }
 
-    fun views(c: Context, widthDp: Float): RemoteViews {
+    /**
+     * The home-screen Clock widget (concept E): no card, a big time, and four dials.
+     * Text turns dark on a light wallpaper. The time and dials are sized to the widget.
+     */
+    fun views(c: Context, widthDp: Float, heightDp: Float): RemoteViews {
         val rv = RemoteViews(c.packageName, R.layout.clock_widget)
-        fill(c, rv, widthDp - 32f, 72f, 48f, 150)
+        val dp = TypedValue.COMPLEX_UNIT_DIP
+        val innerW = widthDp - 24f
+        val innerH = heightDp - 16f
+
+        // Sizes: the time comes first. Dials take up to a fifth of the width but shrink on a short
+        // widget so the time stays big; the time then gets whatever height is left.
+        val dial = minOf(innerW * 0.20f, (innerH - 46f) * 0.30f).coerceIn(44f, 72f)
+        val showDials = innerH >= dial + 18f + 10f + 18f + 50f
+        val byWidth = (innerW - 34f) / 2.8f
+        val byHeight = (innerH - 18f - (if (showDials) dial + 28f else 0f)) / 1.24f
+        val timeSize = minOf(byWidth, byHeight).coerceIn(36f, 124f)
+        rv.setTextViewTextSize(R.id.ck_time, dp, timeSize)
+        rv.setTextViewTextSize(R.id.ck_ampm, dp, (timeSize * 0.17f).coerceIn(12f, 20f))
+        rv.setViewLayoutMargin(R.id.ck_ampm, RemoteViews.MARGIN_BOTTOM, timeSize * 0.11f, dp)
+        rv.setTextViewTextSize(R.id.ck_date, dp, (timeSize * 0.13f).coerceIn(11f, 15f))
+        rv.setViewVisibility(R.id.ck_dials, if (showDials) View.VISIBLE else View.GONE)
+
+        // Sun or moon, and the colour everything takes from it.
+        val sun = Device.sunNow()
+        val sky = Device.sky()
+        val night = sun.elevationDeg <= -4
+        val accent = if (night) ClockDials.NIGHT_ACCENT else sunColor(sun.elevationDeg.coerceAtLeast(4.0))
+        val dark = darkTextWallpaper(c)
+        val ink = if (dark) 0xFF1A1A19.toInt() else Color.WHITE
+        val soft = if (dark) 0xCC1A1A19.toInt() else 0xD9FFFFFF.toInt()
+        rv.setTextColor(R.id.ck_time, ink)
+        rv.setTextColor(R.id.ck_ampm, soft)
+        rv.setTextColor(R.id.ck_date, if (dark) mix(accent, Color.BLACK, 0.45f) else accent)
+        for (id in intArrayOf(R.id.ck_sky_cap, R.id.ck_temp_cap, R.id.ck_air_cap, R.id.ck_alarm_cap)) rv.setTextColor(id, soft)
+
+        val clock = clockAppIntent(c, 160)
+        rv.setOnClickPendingIntent(R.id.ck_time_box, clock)
+        if (!showDials) return rv
+
+        for (id in intArrayOf(R.id.ck_sky, R.id.ck_temp, R.id.ck_air, R.id.ck_alarm)) {
+            rv.setViewLayoutWidth(id, dial, dp)
+            rv.setViewLayoutHeight(id, dial, dp)
+        }
+        val fmt = DateTimeFormatter.ofPattern(if (android.text.format.DateFormat.is24HourFormat(c)) "H:mm" else "h:mm", Locale.ENGLISH)
+
+        // 1. Sky: ring = share of the day (or night) gone; caption = the next sunset or sunrise.
+        val wx = Weather.now(c)
+        val moonPhase = (Device.moon().age / 29.530588853).toFloat()
+        val now = LocalTime.now().toSecondOfDay() / 86400f
+        val rise = sky.sunrise?.toSecondOfDay()?.div(86400f)
+        val set = sky.sunset?.toSecondOfDay()?.div(86400f)
+        val gone = when {
+            rise == null || set == null || set <= rise -> if (night) 0f else 0.5f
+            now in rise..set -> (now - rise) / (set - rise)
+            else -> ((now - set + 1f) % 1f) / (1f - (set - rise))
+        }
+        rv.setImageViewBitmap(R.id.ck_sky, ClockDials.sky(c, dial, night, gone, accent, sun.elevationDeg, moonPhase, wx?.sky))
+        val nowT = LocalTime.now()
+        val riseT = sky.sunrise
+        val setT = sky.sunset
+        rv.setTextViewText(R.id.ck_sky_cap, when {
+            riseT == null || setT == null -> if (sun.up) "SUN UP" else "SUN DOWN"
+            nowT.isBefore(riseT) -> "RISE ${riseT.format(fmt)}"
+            nowT.isBefore(setT) -> "SET ${setT.format(fmt)}"
+            else -> "RISE ${riseT.format(fmt)}" // tomorrow's is within a minute or two of today's
+        })
+        rv.setContentDescription(R.id.ck_sky, if (night) "Moon now, ${Device.moon().name}" else "Sun now")
+
+        // 2. Temperature, with today's range.
+        rv.setImageViewBitmap(R.id.ck_temp, ClockDials.temperature(c, dial, wx?.tempC, wx?.low, wx?.high))
+        rv.setTextViewText(R.id.ck_temp_cap, when {
+            wx == null -> "WEATHER"
+            wx.low != null && wx.high != null -> "${wx.low}–${wx.high}°"
+            else -> wx.text.uppercase(Locale.getDefault()).take(10)
+        })
+        rv.setContentDescription(R.id.ck_temp, wx?.line ?: "Weather not loaded yet")
+
+        // 3. Air quality.
+        val air = Weather.air(c)
+        rv.setImageViewBitmap(R.id.ck_air, ClockDials.air(c, dial, air?.aqi, air?.color ?: Color.GRAY))
+        rv.setTextViewText(R.id.ck_air_cap, when {
+            air == null -> "AIR"
+            air.aqi <= 50 -> "AIR GOOD"
+            air.aqi <= 100 -> "MODERATE"
+            air.aqi <= 150 -> "SENSITIVE"
+            air.aqi <= 200 -> "UNHEALTHY"
+            air.aqi <= 300 -> "V.UNHEALTHY"
+            else -> "HAZARDOUS"
+        })
+        rv.setContentDescription(R.id.ck_air, air?.line ?: "Air quality not loaded yet")
+
+        // 4. Next alarm.
+        val alarm = Device.nextAlarm(c)
+        rv.setImageViewBitmap(R.id.ck_alarm, ClockDials.alarm(c, dial, alarm?.format(fmt)))
+        rv.setTextViewText(R.id.ck_alarm_cap, when {
+            alarm == null -> "ALARM"
+            ChronoUnit.HOURS.between(java.time.LocalDateTime.now(), alarm) < 24 -> "ALARM"
+            else -> "ALARM " + alarm.format(DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH)).uppercase()
+        })
+        rv.setContentDescription(R.id.ck_alarm, alarmText(alarm).lowercase())
+
+        // Taps: sky, weather and air open the app's Today page; the alarm opens that alarm.
+        val today = Views.openApp(c, "today", 161)
+        rv.setOnClickPendingIntent(R.id.ck_sky_box, today)
+        rv.setOnClickPendingIntent(R.id.ck_temp_box, today)
+        rv.setOnClickPendingIntent(R.id.ck_air_box, today)
+        val show = c.getSystemService(AlarmManager::class.java)?.nextAlarmClock?.showIntent
+        rv.setOnClickPendingIntent(R.id.ck_alarm_box, show ?: clock)
         return rv
     }
+
+    /** True when the wallpaper is light enough that the system recommends dark text on it. */
+    private fun darkTextWallpaper(c: Context): Boolean = runCatching {
+        val colors = WallpaperManager.getInstance(c).getWallpaperColors(WallpaperManager.FLAG_SYSTEM)
+        colors != null && (colors.colorHints and WallpaperColors.HINT_SUPPORTS_DARK_TEXT) != 0
+    }.getOrDefault(false)
 
     /** The Clock page on the all-in-one widget. */
     fun page(c: Context): RemoteViews {
@@ -85,7 +205,7 @@ object ClockViews {
         return rv
     }
 
-    /** Fills the shared views (same ids in the widget and the page). */
+    /** Fills the all-in-one widget's Clock page. */
     private fun fill(c: Context, rv: RemoteViews, graphWidthDp: Float, iconDp: Float, graphHeightDp: Float, code: Int) {
         val sun = Device.sunNow()
         val sky = Device.sky()
@@ -169,7 +289,7 @@ object ClockViews {
         return stops.last().second
     }
 
-    private fun mix(a: Int, b: Int, t: Float) = Color.rgb(
+    internal fun mix(a: Int, b: Int, t: Float) = Color.rgb(
         (Color.red(a) + (Color.red(b) - Color.red(a)) * t).toInt(),
         (Color.green(a) + (Color.green(b) - Color.green(a)) * t).toInt(),
         (Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t).toInt(),

@@ -5,7 +5,7 @@
 |---|---|---|
 | `RingWidgetReceiver` (all-in-one, pages) | `widget_root.xml`, `page_*.xml` | `ring_widget_info.xml` |
 | `TodayWidget`, `StepsWidget`, `BatteryWidget`, `DataWidget`, `FocusWidget`, `PressureWidget`, `CompassWidget` (`Singles.kt`) | `single_small.xml`, `single_wide.xml`, `compass_widget.xml` | `w_*.xml` |
-| `ClockWidget` | `clock_widget.xml` | `w_clock.xml` |
+| `ClockWidget` (dials drawn in `ClockDials.kt`; font `res/font/outfit_*`) | `clock_widget.xml` | `w_clock.xml` |
 | `PeopleWidget` | `people_widget.xml`, `people_frame.xml` | `w_people.xml` |
 
 Widget pickers use `preview_*.xml` layouts (Android 12+ `previewLayout`) and `ic_w_*` icons.
@@ -24,7 +24,10 @@ subclasses. Methods called through `setInt`/`setFloat` etc. must be `@RemotableV
   `PendingIntent`s back to the provider, which hands real work to WorkManager.
 - Never let an exception leave the widget broken: catch around `updateAppWidget` and show a
   plain fallback (see `PeopleViews.fallback`).
-- Colours: dark card `widget_bg.xml`, accents per feature; pills `pill_*.xml`.
+- Colours: dark card `widget_bg.xml`, accents per feature; pills `pill_*.xml`. The Clock widget
+  has no card: it checks `WallpaperColors.HINT_SUPPORTS_DARK_TEXT` and switches its text dark on
+  light wallpapers. Bundled fonts in `res/font` work in RemoteViews layouts via `android:fontFamily`;
+  their licences are in `assets/licenses/`.
 
 ## Animation
 The launcher runs widget animation itself, so it costs the app nothing. `people_widget.xml`

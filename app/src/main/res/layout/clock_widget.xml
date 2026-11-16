@@ -1,127 +1,183 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Clock widget: live time (TextClock, ticks on its own for free), date, next alarm, the sun or
-  moon as it is right now, and today's sun path with sunrise and sunset marked.
+  Clock widget (1.23 redesign, "concept E"): no card, it sits straight on the wallpaper like the
+  phone's own clock. Date, a big live time (TextClock, ticks on its own), then four round dials:
+  the sun in its real colour or tonight's moon, temperature, air quality and the next alarm.
+  Sizes and colours are set from ClockViews at draw time (widget size, light or dark wallpaper).
+  Only views allowed in RemoteViews: LinearLayout, FrameLayout, TextView, TextClock, ImageView.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/clock_root"
+    android:id="@+id/ck_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_bg"
+    android:gravity="center_vertical"
     android:orientation="vertical"
-    android:paddingStart="16dp"
-    android:paddingTop="14dp"
-    android:paddingEnd="16dp"
-    android:paddingBottom="12dp">
+    android:paddingStart="12dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="8dp">
 
     <LinearLayout
+        android:id="@+id/ck_time_box"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextClock
+            android:id="@+id/ck_date"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="monospace"
+            android:format12Hour="EEE d MMM"
+            android:format24Hour="EEE d MMM"
+            android:letterSpacing="0.09"
+            android:maxLines="1"
+            android:shadowColor="#59000000"
+            android:shadowDy="1"
+            android:shadowRadius="8"
+            android:textAllCaps="true"
+            android:textColor="#FFFFB547"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="bottom"
+            android:orientation="horizontal">
+
+            <TextClock
+                android:id="@+id/ck_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="-3dp"
+                android:fontFamily="@font/outfit_light"
+                android:format12Hour="h:mm"
+                android:format24Hour="HH:mm"
+                android:includeFontPadding="false"
+                android:letterSpacing="-0.03"
+                android:maxLines="1"
+                android:shadowColor="#59000000"
+                android:shadowDy="1"
+                android:shadowRadius="10"
+                android:textColor="#FFFFFFFF"
+                android:textSize="88dp" />
+
+            <TextClock
+                android:id="@+id/ck_ampm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginBottom="10dp"
+                android:fontFamily="@font/outfit_medium"
+                android:format12Hour="a"
+                android:format24Hour=""
+                android:includeFontPadding="false"
+                android:shadowColor="#59000000"
+                android:shadowDy="1"
+                android:shadowRadius="8"
+                android:textColor="#D9FFFFFF"
+                android:textSize="18dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/ck_dials"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center_vertical"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal">
 
         <LinearLayout
-            android:id="@+id/clock_box"
-            android:layout_width="0dp"
+            android:id="@+id/ck_sky_box"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:gravity="center_horizontal"
             android:orientation="vertical">
 
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="bottom"
-                android:orientation="horizontal">
-
-                <TextClock
-                    android:id="@+id/clock_time"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-light"
-                    android:format12Hour="h:mm"
-                    android:format24Hour="HH:mm"
-                    android:includeFontPadding="false"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="46sp" />
-
-                <TextClock
-                    android:id="@+id/clock_ampm"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="6dp"
-                    android:layout_marginBottom="6dp"
-                    android:fontFamily="monospace"
-                    android:format12Hour="a"
-                    android:format24Hour=""
-                    android:textColor="#FF8A8A8A"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <TextClock
-                android:id="@+id/clock_date"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:format12Hour="EEEE, d MMMM"
-                android:format24Hour="EEEE, d MMMM"
-                android:maxLines="1"
-                android:textColor="#FFBDBDBD"
-                android:textSize="13sp" />
+            <ImageView
+                android:id="@+id/ck_sky"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:contentDescription="Sun or moon now"
+                android:src="@drawable/clock_dial_empty" />
 
             <TextView
-                android:id="@+id/clock_weather"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:fontFamily="sans-serif-medium"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFEBEBEB"
-                android:textSize="13sp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/clock_aqi"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.04"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FF8A8A8A"
-                android:textSize="11sp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/clock_alarm"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:drawablePadding="6dp"
-                android:fontFamily="monospace"
-                android:letterSpacing="0.06"
-                android:maxLines="1"
-                android:text="NO ALARM"
-                android:textColor="#FF8A8A8A"
-                android:textSize="11sp" />
+                android:id="@+id/ck_sky_cap"
+                style="@style/ClockCaption" />
         </LinearLayout>
 
-        <ImageView
-            android:id="@+id/clock_sky"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:layout_marginStart="10dp"
-            android:contentDescription="Sun or moon now"
-            android:scaleType="fitCenter" />
-    </LinearLayout>
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
 
-    <ImageView
-        android:id="@+id/clock_graph"
-        android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginTop="8dp"
-        android:contentDescription="Today's sun path"
-        android:scaleType="fitXY" />
+        <LinearLayout
+            android:id="@+id/ck_temp_box"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/ck_temp"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:contentDescription="Temperature"
+                android:src="@drawable/clock_dial_empty" />
+
+            <TextView
+                android:id="@+id/ck_temp_cap"
+                style="@style/ClockCaption" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/ck_air_box"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/ck_air"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:contentDescription="Air quality"
+                android:src="@drawable/clock_dial_empty" />
+
+            <TextView
+                android:id="@+id/ck_air_cap"
+                style="@style/ClockCaption" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <LinearLayout
+            android:id="@+id/ck_alarm_box"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <ImageView
+                android:id="@+id/ck_alarm"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:contentDescription="Next alarm"
+                android:src="@drawable/clock_dial_empty" />
+
+            <TextView
+                android:id="@+id/ck_alarm_cap"
+                style="@style/ClockCaption"
+                android:text="ALARM" />
+        </LinearLayout>
+    </LinearLayout>
 </LinearLayout>
