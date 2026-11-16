@@ -12,7 +12,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 
 /**
- * Clock widget settings: pick the font for the time. Opens from the widget's own settings
+ * Clock widget settings: the background (smoked glass or none) and the font for the time. Opens from the widget's own settings
  * (long-press the widget, then the pencil / "Customise"), and from the app's Setup tab.
  * The choice applies to every Clock widget.
  */
@@ -35,9 +35,21 @@ class ClockConfigActivity : Activity() {
         val c = this
         val chosen = ClockFont.current(c)
         val list = Ui.vstack(c).apply { setPadding(Ui.dp(c, 20), Ui.dp(c, 28), Ui.dp(c, 20), Ui.dp(c, 32)) }
-        list.addView(Ui.text(c, "Clock font", 28f))
-        list.addView(Ui.text(c, "The font for the time on your Clock widget.", 14f, Ui.SOFT).apply {
-            setPadding(0, Ui.dp(c, 8), 0, Ui.dp(c, 16))
+        list.addView(Ui.text(c, "Clock widget", 28f))
+        val glass = ClockFont.background(c)
+        list.addView(Ui.text(c, "Background", 13f, Ui.FAINT, mono = true).apply { setPadding(0, Ui.dp(c, 22), 0, Ui.dp(c, 10)) })
+        val bgRow = Ui.hstack(c)
+        fun bgPill(label: String, on: Boolean) = Ui.pill(c, label, glass == on) {
+            ClockFont.setBackground(c, on)
+            refresh()
+            render()
+        }
+        bgRow.addView(bgPill("Smoked glass", true), LinearLayout.LayoutParams(0, Ui.dp(c, 44), 1f).apply { marginEnd = Ui.dp(c, 10) })
+        bgRow.addView(bgPill("None", false), LinearLayout.LayoutParams(0, Ui.dp(c, 44), 1f))
+        list.addView(bgRow)
+        list.addView(Ui.text(c, "Font", 13f, Ui.FAINT, mono = true).apply { setPadding(0, Ui.dp(c, 26), 0, 0) })
+        list.addView(Ui.text(c, "The font for the time.", 14f, Ui.SOFT).apply {
+            setPadding(0, Ui.dp(c, 8), 0, Ui.dp(c, 6))
         })
         for (f in ClockFont.entries) {
             val on = f == chosen
@@ -81,10 +93,14 @@ class ClockConfigActivity : Activity() {
         })
     }
 
-    private fun pick(f: ClockFont) {
-        ClockFont.set(this, f)
+    private fun refresh() {
         val app = applicationContext
         Thread { runCatching { ClockViews.update(app) } }.start()
+    }
+
+    private fun pick(f: ClockFont) {
+        ClockFont.set(this, f)
+        refresh()
         setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
         finish()
     }

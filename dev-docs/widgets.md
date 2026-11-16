@@ -25,7 +25,7 @@ subclasses. Methods called through `setInt`/`setFloat` etc. must be `@RemotableV
 - Never let an exception leave the widget broken: catch around `updateAppWidget` and show a
   plain fallback (see `PeopleViews.fallback`).
 - Colours: dark card `widget_bg.xml`, accents per feature; pills `pill_*.xml`. The Clock widget
-  has no card: it checks `WallpaperColors.HINT_SUPPORTS_DARK_TEXT` and switches its text dark on
+  has a smoked-glass tint (`clock_frost.xml`, can be turned off); with it off it checks `WallpaperColors.HINT_SUPPORTS_DARK_TEXT` and switches its text dark on
   light wallpapers. Bundled fonts in `res/font` work in RemoteViews layouts via `android:fontFamily`;
   their licences are in `assets/licenses/`.
 

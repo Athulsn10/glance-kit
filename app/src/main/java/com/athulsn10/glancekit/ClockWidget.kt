@@ -35,7 +35,7 @@ import kotlin.math.max
 import kotlin.math.sin
 
 /**
- * Clock widget (1.23 redesign): straight on the wallpaper, no card. Date, a big time (ticks by
+ * Clock widget (1.23 redesign): on a smoked-glass background or straight on the wallpaper. Date, a big time (ticks by
  * itself), and four dials: the sun or moon as it looks right now, temperature, air quality and
  * the next alarm. The all-in-one widget's Clock page keeps the older layout with the sun path.
  * The sun's colour follows its height: deep red at the horizon, orange, then pale yellow at midday.
@@ -86,8 +86,15 @@ object ClockViews {
     fun views(c: Context, widthDp: Float, heightDp: Float): RemoteViews {
         val rv = RemoteViews(c.packageName, R.layout.clock_widget)
         val dp = TypedValue.COMPLEX_UNIT_DIP
-        val innerW = widthDp - 24f
-        val innerH = heightDp - 16f
+        // Background: smoked glass (a see-through dark layer) or straight on the wallpaper.
+        val glass = ClockFont.background(c)
+        val padX = if (glass) 18f else 12f
+        val padY = if (glass) 14f else 8f
+        val px = c.resources.displayMetrics.density
+        rv.setViewPadding(R.id.ck_root, (padX * px).toInt(), (padY * px).toInt(), (padX * px).toInt(), (padY * px).toInt())
+        rv.setInt(R.id.ck_root, "setBackgroundResource", if (glass) R.drawable.clock_frost else 0)
+        val innerW = widthDp - 2 * padX
+        val innerH = heightDp - 2 * padY
 
         // Sizes: the time comes first. Dials take up to a fifth of the width but shrink on a short
         // widget so the time stays big; the time then gets whatever height is left.
@@ -101,7 +108,7 @@ object ClockViews {
         rv.setTextViewTextSize(R.id.ck_date, dp, (timeSize * 0.13f).coerceIn(11f, 15f))
 
         // The time row in the chosen font (see ClockFont): its own small layout, set up and swapped in.
-        val dark = darkTextWallpaper(c)
+        val dark = !glass && darkTextWallpaper(c) // on the glass the text is always light
         val ink = if (dark) 0xFF1A1A19.toInt() else Color.WHITE
         val soft = if (dark) 0xCC1A1A19.toInt() else 0xD9FFFFFF.toInt()
         val row = RemoteViews(c.packageName, font.timeLayout)

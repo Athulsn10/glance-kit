@@ -3,6 +3,13 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.25.0] - 2026-11-16
+
+### Added
+- Clock widget background: a smoked-glass layer behind the clock (a see-through dark tint with a
+  soft edge), on by default. Turn it off in the Clock widget settings to put the clock straight
+  on the wallpaper again.
+
 ## [1.24.0] - 2026-11-16
 
 ### Added

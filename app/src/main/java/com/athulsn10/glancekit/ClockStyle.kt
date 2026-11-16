@@ -43,6 +43,15 @@ enum class ClockFont(
             Store.prefs(c).edit().putString(PREF, f.key).apply()
         }
 
+        private const val PREF_BG = "clock_bg"
+
+        /** Smoked-glass background behind the clock (on unless turned off). */
+        fun background(c: Context): Boolean = Store.prefs(c).getBoolean(PREF_BG, true)
+
+        fun setBackground(c: Context, on: Boolean) {
+            Store.prefs(c).edit().putBoolean(PREF_BG, on).apply()
+        }
+
         private val cache = HashMap<Int, Typeface>()
 
         /** Typeface for a font resource, loaded once. Falls back to the system font. */
