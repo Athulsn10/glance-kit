@@ -40,44 +40,14 @@
             android:textSize="13sp"
             android:textStyle="bold" />
 
+        <!-- The time row: replaced at draw time by clock_time_<font>.xml for the chosen font. -->
         <LinearLayout
+            android:id="@+id/ck_time_slot"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="bottom"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
-            <TextClock
-                android:id="@+id/ck_time"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="-3dp"
-                android:fontFamily="@font/outfit_light"
-                android:format12Hour="h:mm"
-                android:format24Hour="HH:mm"
-                android:includeFontPadding="false"
-                android:letterSpacing="-0.03"
-                android:maxLines="1"
-                android:shadowColor="#59000000"
-                android:shadowDy="1"
-                android:shadowRadius="10"
-                android:textColor="#FFFFFFFF"
-                android:textSize="88dp" />
-
-            <TextClock
-                android:id="@+id/ck_ampm"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:layout_marginBottom="10dp"
-                android:fontFamily="@font/outfit_medium"
-                android:format12Hour="a"
-                android:format24Hour=""
-                android:includeFontPadding="false"
-                android:shadowColor="#59000000"
-                android:shadowDy="1"
-                android:shadowRadius="8"
-                android:textColor="#D9FFFFFF"
-                android:textSize="18dp" />
+            <include layout="@layout/clock_time_outfit" />
         </LinearLayout>
     </LinearLayout>
 

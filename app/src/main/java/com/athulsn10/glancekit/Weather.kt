@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
- * Weather from MET Norway's free forecast service (api.met.no, CC BY 4.0).
+ * Weather from Open-Meteo (open-meteo.com, CC BY 4.0), with MET Norway (api.met.no, CC BY 4.0) as a fallback.
  * Fetched about every 30 minutes, only with a connection, and kept on the phone between fetches.
  * Only your approximate location (rounded to about 1 km, see Place) is sent.
  */
@@ -141,8 +141,85 @@ object Weather {
     fun wanted(c: Context) = ClockViews.ids(c).isNotEmpty() ||
         (Store.PAGE_CLOCK in Store.pageOrder(c) && widgetIds(c).isNotEmpty())
 
-    /** Download and save the current forecast. Returns true on success. Runs off the main thread. */
+    /**
+     * Download and save the current weather. Returns true on success. Runs off the main thread.
+     * Open-Meteo first (the same service as air quality, which has proved reliable), then MET Norway.
+     */
     fun fetch(c: Context): Boolean {
+        val first = runCatching { fetchOpenMeteo(c) }
+        if (first.getOrDefault(false)) return true
+        val second = runCatching { fetchMet(c) }
+        if (second.getOrDefault(false)) return true
+        val err = first.exceptionOrNull() ?: second.exceptionOrNull() ?: IllegalStateException("no weather from either service")
+        runCatching { PeopleLog.e(c, "weather fetch", err, "open-meteo: ${first.exceptionOrNull()?.message ?: "no data"}; met: ${second.exceptionOrNull()?.message ?: "no data"}") }
+        return false
+    }
+
+    /** Current weather and today's range from Open-Meteo (CC BY 4.0, no key). */
+    private fun fetchOpenMeteo(c: Context): Boolean {
+        Place.ensureLoaded(c)
+        val lat = String.format(Locale.US, "%.4f", Place.latitude)
+        val lon = String.format(Locale.US, "%.4f", Place.longitude)
+        val url = URL("https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
+            "&current=temperature_2m,relative_humidity_2m,weather_code,is_day" +
+            "&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&forecast_days=1&timezone=auto")
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            setRequestProperty("User-Agent", "GlanceKit/1 github.com/Athulsn10/glance-kit")
+        }
+        try {
+            if (conn.responseCode != 200) throw IllegalStateException("open-meteo HTTP ${conn.responseCode}")
+            val root = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val cur = root.getJSONObject("current")
+            val code = cur.getInt("weather_code")
+            val daily = root.optJSONObject("daily")
+            fun first(name: String) = daily?.optJSONArray(name)?.optDouble(0, Double.NaN) ?: Double.NaN
+            val hi = first("temperature_2m_max")
+            val lo = first("temperature_2m_min")
+            val pop = first("precipitation_probability_max")
+            val o = JSONObject().apply {
+                put("at", System.currentTimeMillis())
+                put("t", cur.getDouble("temperature_2m").roundToInt())
+                put("sky", wmoSky(code).name)
+                put("text", wmoText(code))
+                if (!hi.isNaN() && !lo.isNaN() && hi > lo) { put("hi", hi.roundToInt()); put("lo", lo.roundToInt()) }
+                if (!cur.isNull("relative_humidity_2m")) put("rh", cur.getDouble("relative_humidity_2m").roundToInt())
+                if (!pop.isNaN()) put("pop", pop.roundToInt())
+            }
+            Store.prefs(c).edit().putString(K, o.toString()).apply()
+            return true
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    /** WMO weather codes (Open-Meteo) to the icon groups we draw. */
+    private fun wmoSky(code: Int): Sky = when (code) {
+        0 -> Sky.CLEAR
+        1, 2 -> Sky.PARTLY
+        3 -> Sky.CLOUDY
+        45, 48 -> Sky.FOG
+        in 51..67, in 80..82 -> Sky.RAIN
+        in 71..77, 85, 86 -> Sky.SNOW
+        in 95..99 -> Sky.STORM
+        else -> Sky.CLOUDY
+    }
+
+    private fun wmoText(code: Int): String = when (code) {
+        0 -> "Clear"; 1 -> "Mostly clear"; 2 -> "Partly cloudy"; 3 -> "Cloudy"
+        45, 48 -> "Fog"
+        51, 53, 55 -> "Drizzle"; 56, 57 -> "Freezing drizzle"
+        61 -> "Light rain"; 63 -> "Rain"; 65 -> "Heavy rain"; 66, 67 -> "Freezing rain"
+        71 -> "Light snow"; 73 -> "Snow"; 75 -> "Heavy snow"; 77 -> "Snow grains"
+        80 -> "Light showers"; 81 -> "Rain showers"; 82 -> "Heavy showers"
+        85, 86 -> "Snow showers"
+        95 -> "Thunderstorm"; 96, 99 -> "Thunderstorm with hail"
+        else -> "Cloudy"
+    }
+
+    /** MET Norway forecast: the fallback. */
+    private fun fetchMet(c: Context): Boolean {
         Place.ensureLoaded(c)
         val lat = String.format(Locale.US, "%.4f", Place.latitude)
         val lon = String.format(Locale.US, "%.4f", Place.longitude)
@@ -154,15 +231,12 @@ object Weather {
             setRequestProperty("User-Agent", "GlanceKit/1 github.com/Athulsn10/glance-kit")
             setRequestProperty("Accept", "application/json")
         }
-        return try {
-            if (conn.responseCode != 200) return false
+        try {
+            if (conn.responseCode != 200) throw IllegalStateException("met.no HTTP ${conn.responseCode}")
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             val saved = parse(body) ?: return false
             Store.prefs(c).edit().putString(K, saved.toString()).apply()
-            true
-        } catch (e: Exception) {
-            android.util.Log.w("GlanceKit", "Weather fetch failed", e)
-            false
+            return true
         } finally {
             conn.disconnect()
         }

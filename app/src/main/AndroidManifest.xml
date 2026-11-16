@@ -87,6 +87,17 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
+        <!-- Clock widget settings (font). Opened by the launcher from the widget, and from Setup. -->
+        <activity
+            android:name=".ClockConfigActivity"
+            android:exported="true"
+            android:label="Clock widget"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <!-- Live instruments. Sensors run only while this screen is open. -->
         <activity
             android:name=".InstrumentsActivity"

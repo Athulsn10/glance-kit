@@ -93,13 +93,25 @@ object ClockViews {
         // widget so the time stays big; the time then gets whatever height is left.
         val dial = minOf(innerW * 0.20f, (innerH - 46f) * 0.30f).coerceIn(44f, 72f)
         val showDials = innerH >= dial + 18f + 10f + 18f + 50f
-        val byWidth = (innerW - 34f) / 2.8f
-        val byHeight = (innerH - 18f - (if (showDials) dial + 28f else 0f)) / 1.24f
+        val font = ClockFont.current(c)
+        val ampmSize = 20f
+        val byWidth = (innerW - ampmSize * 1.8f - 6f) / font.widthEm
+        val byHeight = (innerH - 18f - (if (showDials) dial + 28f else 0f)) / font.lineEm
         val timeSize = minOf(byWidth, byHeight).coerceIn(36f, 124f)
-        rv.setTextViewTextSize(R.id.ck_time, dp, timeSize)
-        rv.setTextViewTextSize(R.id.ck_ampm, dp, (timeSize * 0.17f).coerceIn(12f, 20f))
-        rv.setViewLayoutMargin(R.id.ck_ampm, RemoteViews.MARGIN_BOTTOM, timeSize * 0.11f, dp)
         rv.setTextViewTextSize(R.id.ck_date, dp, (timeSize * 0.13f).coerceIn(11f, 15f))
+
+        // The time row in the chosen font (see ClockFont): its own small layout, set up and swapped in.
+        val dark = darkTextWallpaper(c)
+        val ink = if (dark) 0xFF1A1A19.toInt() else Color.WHITE
+        val soft = if (dark) 0xCC1A1A19.toInt() else 0xD9FFFFFF.toInt()
+        val row = RemoteViews(c.packageName, font.timeLayout)
+        row.setTextViewTextSize(R.id.ck_time, dp, timeSize)
+        row.setTextViewTextSize(R.id.ck_ampm, dp, (timeSize * 0.17f).coerceIn(12f, ampmSize))
+        row.setViewLayoutMargin(R.id.ck_ampm, RemoteViews.MARGIN_BOTTOM, timeSize * (font.lineEm - 1f) * 0.9f + 2f, dp)
+        row.setTextColor(R.id.ck_time, ink)
+        row.setTextColor(R.id.ck_ampm, soft)
+        rv.removeAllViews(R.id.ck_time_slot)
+        rv.addView(R.id.ck_time_slot, row)
         rv.setViewVisibility(R.id.ck_dials, if (showDials) View.VISIBLE else View.GONE)
 
         // Sun or moon, and the colour everything takes from it.
@@ -107,11 +119,6 @@ object ClockViews {
         val sky = Device.sky()
         val night = sun.elevationDeg <= -4
         val accent = if (night) ClockDials.NIGHT_ACCENT else sunColor(sun.elevationDeg.coerceAtLeast(4.0))
-        val dark = darkTextWallpaper(c)
-        val ink = if (dark) 0xFF1A1A19.toInt() else Color.WHITE
-        val soft = if (dark) 0xCC1A1A19.toInt() else 0xD9FFFFFF.toInt()
-        rv.setTextColor(R.id.ck_time, ink)
-        rv.setTextColor(R.id.ck_ampm, soft)
         rv.setTextColor(R.id.ck_date, if (dark) mix(accent, Color.BLACK, 0.45f) else accent)
         for (id in intArrayOf(R.id.ck_sky_cap, R.id.ck_temp_cap, R.id.ck_air_cap, R.id.ck_alarm_cap)) rv.setTextColor(id, soft)
 
@@ -127,6 +134,7 @@ object ClockViews {
 
         // 1. Sky: ring = share of the day (or night) gone; caption = the next sunset or sunrise.
         val wx = Weather.now(c)
+        if (wx == null) runCatching { Weather.refreshSoon(c) } // nothing recent saved: try again soon
         val moonPhase = (Device.moon().age / 29.530588853).toFloat()
         val now = LocalTime.now().toSecondOfDay() / 86400f
         val rise = sky.sunrise?.toSecondOfDay()?.div(86400f)

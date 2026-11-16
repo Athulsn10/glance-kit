@@ -1008,6 +1008,14 @@ class MainActivity : Activity(), SensorEventListener {
             }
         }, 4)
         add(col, pagesCard(), 12)
+        add(col, Ui.card(this, "CLOCK WIDGET").apply {
+            addView(Ui.text(context, "Font: ${ClockFont.current(context).label}", 15f, Ui.WHITE, medium = true))
+            addView(Ui.spacer(context, 6))
+            addView(Ui.text(context, "Pick the font for the time. You can also long-press the widget and tap its settings.", 13f, Ui.FAINT))
+            addView(Ui.spacer(context, 12))
+            addView(Ui.pill(context, "Change clock font", false) { startActivity(Intent(context, ClockConfigActivity::class.java)) },
+                LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 44)))
+        }, 12)
         add(col, Ui.card(this, "LIVE COMPASS WIDGET").apply {
             val live = CompassService.isLive(context)
             val placed = CompassService.hasHost(context)

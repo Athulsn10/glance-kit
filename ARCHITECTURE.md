@@ -10,7 +10,7 @@ Home screen (launcher)
 Widget providers ──► Renderers (bitmaps) ──► Data sources ──► Store (SharedPreferences)
    ▲                                              │
    │ WorkManager / alarms / broadcasts            ├─ device: battery, steps, sensors, usage stats
-   │                                              ├─ web: MET Norway (weather), Open-Meteo (air quality)
+   │                                              ├─ web: Open-Meteo (weather, air quality), MET Norway (weather backup)
 App (MainActivity tabs, activities)               └─ Firebase (People only)
 ```
 

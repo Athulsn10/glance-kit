@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Clock widget time row in the "sora" font (picked in ClockConfigActivity, added by ClockViews). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:gravity="bottom"
+    android:orientation="horizontal">
+
+    <TextClock
+        android:id="@+id/ck_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="-3dp"
+        android:fontFamily="@font/clock_sora_light"
+        android:format12Hour="h:mm"
+        android:format24Hour="HH:mm"
+        android:includeFontPadding="false"
+        android:letterSpacing="-0.04"
+        android:maxLines="1"
+        android:shadowColor="#59000000"
+        android:shadowDy="1"
+        android:shadowRadius="10"
+        android:textColor="#FFFFFFFF"
+        android:textSize="88dp" />
+
+    <TextClock
+        android:id="@+id/ck_ampm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:layout_marginBottom="10dp"
+        android:fontFamily="@font/clock_sora_medium"
+        android:format12Hour="a"
+        android:format24Hour=""
+        android:includeFontPadding="false"
+        android:shadowColor="#59000000"
+        android:shadowDy="1"
+        android:shadowRadius="8"
+        android:textColor="#D9FFFFFF"
+        android:textSize="18dp" />
+</LinearLayout>

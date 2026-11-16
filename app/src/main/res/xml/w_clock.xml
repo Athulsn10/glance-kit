@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/wd_clock"
+    android:configure="com.athulsn10.glancekit.ClockConfigActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional"
     android:initialLayout="@layout/clock_widget"
     android:previewLayout="@layout/clock_widget"
     android:previewImage="@drawable/ic_w_clock"

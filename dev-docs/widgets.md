@@ -5,7 +5,7 @@
 |---|---|---|
 | `RingWidgetReceiver` (all-in-one, pages) | `widget_root.xml`, `page_*.xml` | `ring_widget_info.xml` |
 | `TodayWidget`, `StepsWidget`, `BatteryWidget`, `DataWidget`, `FocusWidget`, `PressureWidget`, `CompassWidget` (`Singles.kt`) | `single_small.xml`, `single_wide.xml`, `compass_widget.xml` | `w_*.xml` |
-| `ClockWidget` (dials drawn in `ClockDials.kt`; font `res/font/outfit_*`) | `clock_widget.xml` | `w_clock.xml` |
+| `ClockWidget` (dials drawn in `ClockDials.kt`; fonts `res/font/clock_*`, picked in `ClockConfigActivity` (`ClockFont`)) | `clock_widget.xml` | `w_clock.xml` |
 | `PeopleWidget` | `people_widget.xml`, `people_frame.xml` | `w_people.xml` |
 
 Widget pickers use `preview_*.xml` layouts (Android 12+ `previewLayout`) and `ic_w_*` icons.

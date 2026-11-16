@@ -3,6 +3,17 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.24.0] - 2026-11-16
+
+### Added
+- Clock font: pick from eight fonts for the Clock widget's time (Outfit, Sora, Manrope, Urbanist,
+  Lexend, Space Grotesk, Fraunces, Big Shoulders). Long-press the widget and tap its settings, or
+  use Setup > Clock widget in the app.
+
+### Fixed
+- The Clock widget's weather dial was empty. Weather now comes from Open-Meteo (the same service
+  as air quality), with MET Norway as a backup, and failures are reported to the logs.
+
 ## [1.23.0] - 2026-11-16
 
 ### Changed
