@@ -1009,9 +1009,9 @@ class MainActivity : Activity(), SensorEventListener {
         }, 4)
         add(col, pagesCard(), 12)
         add(col, Ui.card(this, "CLOCK WIDGET").apply {
-            addView(Ui.text(context, "Font: ${ClockFont.current(context).label} · Background: ${if (ClockFont.background(context)) "smoked glass" else "none"}", 15f, Ui.WHITE, medium = true))
+            addView(Ui.text(context, "Background: ${if (ClockStyle.background(context)) "smoked glass" else "none"}", 15f, Ui.WHITE, medium = true))
             addView(Ui.spacer(context, 6))
-            addView(Ui.text(context, "Pick the background and the font for the time. You can also long-press the widget and tap its settings.", 13f, Ui.FAINT))
+            addView(Ui.text(context, "Smoked glass or straight on the wallpaper. You can also long-press the widget and tap its settings.", 13f, Ui.FAINT))
             addView(Ui.spacer(context, 12))
             addView(Ui.pill(context, "Clock widget settings", false) { startActivity(Intent(context, ClockConfigActivity::class.java)) },
                 LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Ui.dp(context, 44)))

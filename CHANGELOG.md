@@ -3,6 +3,13 @@
 All notable changes to Glance Kit. Versions follow MAJOR.MINOR.PATCH
 (see [version.properties](version.properties)).
 
+## [1.25.1] - 2026-11-16
+
+### Removed
+- The Clock widget's font choice. Android doesn't let a widget's live clock use fonts bundled in
+  an app, so picking a font changed only the dial numbers, never the time. The time now uses the
+  phone's own light font and the dials match it. The widget settings keep the background choice.
+
 ## [1.25.0] - 2026-11-16
 
 ### Added

@@ -87,7 +87,7 @@ object ClockViews {
         val rv = RemoteViews(c.packageName, R.layout.clock_widget)
         val dp = TypedValue.COMPLEX_UNIT_DIP
         // Background: smoked glass (a see-through dark layer) or straight on the wallpaper.
-        val glass = ClockFont.background(c)
+        val glass = ClockStyle.background(c)
         val padX = if (glass) 18f else 12f
         val padY = if (glass) 14f else 8f
         val px = c.resources.displayMetrics.density
@@ -100,25 +100,21 @@ object ClockViews {
         // widget so the time stays big; the time then gets whatever height is left.
         val dial = minOf(innerW * 0.20f, (innerH - 46f) * 0.30f).coerceIn(44f, 72f)
         val showDials = innerH >= dial + 18f + 10f + 18f + 50f
-        val font = ClockFont.current(c)
         val ampmSize = 20f
-        val byWidth = (innerW - ampmSize * 1.8f - 6f) / font.widthEm
-        val byHeight = (innerH - 18f - (if (showDials) dial + 28f else 0f)) / font.lineEm
+        val byWidth = (innerW - ampmSize * 1.8f - 6f) / ClockStyle.TIME_WIDTH_EM
+        val byHeight = (innerH - 18f - (if (showDials) dial + 28f else 0f)) / ClockStyle.TIME_LINE_EM
         val timeSize = minOf(byWidth, byHeight).coerceIn(36f, 124f)
         rv.setTextViewTextSize(R.id.ck_date, dp, (timeSize * 0.13f).coerceIn(11f, 15f))
 
-        // The time row in the chosen font (see ClockFont): its own small layout, set up and swapped in.
+        // The time: a live TextClock in the system light font.
         val dark = !glass && darkTextWallpaper(c) // on the glass the text is always light
         val ink = if (dark) 0xFF1A1A19.toInt() else Color.WHITE
         val soft = if (dark) 0xCC1A1A19.toInt() else 0xD9FFFFFF.toInt()
-        val row = RemoteViews(c.packageName, font.timeLayout)
-        row.setTextViewTextSize(R.id.ck_time, dp, timeSize)
-        row.setTextViewTextSize(R.id.ck_ampm, dp, (timeSize * 0.17f).coerceIn(12f, ampmSize))
-        row.setViewLayoutMargin(R.id.ck_ampm, RemoteViews.MARGIN_BOTTOM, timeSize * (font.lineEm - 1f) * 0.9f + 2f, dp)
-        row.setTextColor(R.id.ck_time, ink)
-        row.setTextColor(R.id.ck_ampm, soft)
-        rv.removeAllViews(R.id.ck_time_slot)
-        rv.addView(R.id.ck_time_slot, row)
+        rv.setTextViewTextSize(R.id.ck_time, dp, timeSize)
+        rv.setTextViewTextSize(R.id.ck_ampm, dp, (timeSize * 0.17f).coerceIn(12f, ampmSize))
+        rv.setViewLayoutMargin(R.id.ck_ampm, RemoteViews.MARGIN_BOTTOM, timeSize * (ClockStyle.TIME_LINE_EM - 1f) * 0.9f + 2f, dp)
+        rv.setTextColor(R.id.ck_time, ink)
+        rv.setTextColor(R.id.ck_ampm, soft)
         rv.setViewVisibility(R.id.ck_dials, if (showDials) View.VISIBLE else View.GONE)
 
         // Sun or moon, and the colour everything takes from it.

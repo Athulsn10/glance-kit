@@ -27,8 +27,9 @@ object ClockDials {
     private const val DISC = 0x610A0A09        // dark see-through disc behind every dial
     private const val TRACK = 0x29FFFFFF       // unlit part of a ring
 
-    /** Dial numbers use the medium weight of the font picked for the time. */
-    private fun font(c: Context): Typeface = ClockFont.typeface(c, ClockFont.current(c).medium)
+    /** Dial numbers: the system medium font, matching the time. */
+    @Suppress("UNUSED_PARAMETER")
+    private fun font(c: Context): Typeface = ClockStyle.dialFont
 
     /** A blank dial: the disc and (optionally) the full track ring. Returns the canvas scale (px per unit). */
     private class Dial(c: Context, sizeDp: Float, track: Boolean = true) {
